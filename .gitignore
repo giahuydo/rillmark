@@ -1,0 +1,26 @@
+# Secrets
+.env
+.env.*
+!.env.sample
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+
+# Run output (local only)
+out/
+last_run.json
+
+# Agent tooling and local research notes (not published)
+.serena/
+research/
+
+# Full raw help-center articles stay local; tests use minimal snippets
+tests/fixtures/zendesk/*.json
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
