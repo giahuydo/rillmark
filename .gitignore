@@ -8,6 +8,7 @@ __pycache__/
 *.py[cod]
 .venv/
 .pytest_cache/
+.ruff_cache/
 
 # Run output (local only)
 out/
