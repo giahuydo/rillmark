@@ -19,12 +19,14 @@ R11 asks to schedule the Docker job once a day on "DigitalOcean or any cloud/pub
 
 | Option | Why not chosen |
 |---|---|
-| GitHub Actions `schedule` | Logs are public and it is free, but it is a CI system. It is not clearly one of the "hosting platforms" the assignment names, and that area is worth 15 pts. Fallback only. |
+| GitHub Actions `schedule` | Optional **bonus**, not a replacement for Render: it is a CI system, not clearly one of the named hosting platforms. An opt-in workflow offers daily scheduling and manual dry-run; it does not prove a live scheduled run or a public artifact link. |
 | Railway / Fly.io cron | Equivalent. Render is named in the assignment and has a native Cron Job service type. |
 | DigitalOcean App Platform job / Droplet + crontab | A Droplet needs host management. App Platform is equivalent but has no advantage here. |
 | Always-on container with an in-process scheduler | Violates "runs once and exits", and costs more. |
 
 ## 4. Consequences
+
+**GitHub Actions bonus (opt-in):** `.github/workflows/rillmark-daily.yml` adds a `0 3 * * *` UTC schedule gated by repository variable `RILLMARK_SCHEDULE_ENABLED == 'true'`, and a manual dispatch that defaults to `--dry-run` (Zendesk fetch only; no OpenAI call). An explicitly selected manual sync or enabled schedule uses the project-key secret and gist-scope secret plus Gist ID variable with `REQUIRE_PUBLISH=true`; missing Gist configuration fails before store access. Optional `VECTOR_STORE_ID` is still subject to marker validation. The job has read-only contents permission, non-cancelling concurrency and a timeout, and uploads the redacted `last_run.json` artifact when available. It never uses the workflow `GITHUB_TOKEN` to publish the Gist. **DOCUMENTED limitation:** Actions scheduled jobs may be delayed or dropped, and scheduling on a public repository can be disabled after 60 days of inactivity. **UNKNOWN:** no live scheduled execution or anonymous Gist freshness was verified; Actions does not close R11/R13 or supersede Render ([04 §3](../04-operations.md#github-actions-bonus-opt-in)).
 
 - **Cost:** Render Cron Jobs are billed per run-minute (ASSUMPTION, check pricing before P4). Expected about 1 minute a day.
 - **Single command policy:** image exec-form `ENTRYPOINT ["python"]` + `CMD ["main.py"]`; Docker's documented exec-form argv semantics are `docker run <image>` and `docker run <image> main.py` → `python main.py` (not yet exercised with this project image). Render custom command stays **unset** to inherit the image default; Render's actual mapping of unset command to Docker argv remains UNKNOWN. In P4 check its docs/UI and no-upload runtime argv/exit. Only if Render requires a CMD-argument replacement and this is confirmed, enter `main.py` and verify. Never enter `python main.py` as a CMD replacement; stop if Render overrides ENTRYPOINT or behaves differently ([04 §3](../04-operations.md#3-scheduling-render-cron-job)).

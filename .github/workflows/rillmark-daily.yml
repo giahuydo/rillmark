@@ -1,0 +1,55 @@
+name: Rillmark daily (optional)
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Dry run fetches Zendesk without calling OpenAI; sync requires configured credentials"
+        type: choice
+        options:
+          - dry-run
+          - sync
+        default: dry-run
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rillmark-sync
+  cancel-in-progress: false
+
+jobs:
+  run:
+    if: ${{ (github.event_name == 'schedule' && vars.RILLMARK_SCHEDULE_ENABLED == 'true') || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install runtime dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Dry run
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'dry-run' }}
+        run: python main.py --dry-run
+      - name: Live sync
+        if: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'sync') }}
+        env:
+          API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ARTIFACT_GITHUB_TOKEN: ${{ secrets.ARTIFACT_GITHUB_TOKEN }}
+          ARTIFACT_GIST_ID: ${{ vars.ARTIFACT_GIST_ID }}
+          VECTOR_STORE_ID: ${{ vars.VECTOR_STORE_ID }}
+          REQUIRE_PUBLISH: 'true'
+        run: python main.py
+      - name: Upload redacted run artifact
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: last-run
+          path: last_run.json
+          if-no-files-found: warn

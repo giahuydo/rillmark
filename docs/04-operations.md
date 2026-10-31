@@ -40,6 +40,14 @@ Decision and alternatives: [ADR-0004](adr/0004-scheduler.md).
 
 Docker's argv behavior above follows its exec-form contract; how Render maps an empty custom command to Docker ENTRYPOINT/CMD is still **UNKNOWN**, not a verified Render behavior. At P4, inspect Render's current Docker command documentation/UI and verify the actual container process/argv and exit status in a no-upload configuration probe before scheduling a live sync. If Render requires a command and documentation confirms it replaces **CMD arguments only**, use `main.py` (not `python main.py`) and verify it. If Render overrides ENTRYPOINT, wraps a shell, or cannot preserve this behavior, stop deployment and resolve the command policy before any paid/scheduled run; do not guess a second command.
 
+### GitHub Actions (bonus, opt-in)
+
+The optional `.github/workflows/rillmark-daily.yml` runs at `0 3 * * *` UTC and supports manual `workflow_dispatch`. **Render remains the primary scheduler**; this CI workflow is not evidence of a Render deployment or a public R13 link. Scheduled jobs are skipped unless repository variable `RILLMARK_SCHEDULE_ENABLED` is exactly `true`. Do not enable it until the owner approves live cost and credentials; merely adding the workflow does not trigger a paid sync. A manual dispatch defaults to `dry-run` (`python main.py --dry-run`, Zendesk network fetch, no OpenAI key/call). Explicit manual `sync` and enabled scheduled runs each invoke `python main.py` once with `REQUIRE_PUBLISH=true` so missing Gist configuration fails before store access.
+
+For an authorized live run, configure repository secrets `OPENAI_API_KEY` (project-scoped) and `ARTIFACT_GITHUB_TOKEN` (gist-scope only), repository variable `ARTIFACT_GIST_ID`, and optionally `VECTOR_STORE_ID` (the store marker is still checked). The workflow maps these to `API_KEY`, `ARTIFACT_GITHUB_TOKEN`, `ARTIFACT_GIST_ID`, and `VECTOR_STORE_ID`; the read-only workflow `GITHUB_TOKEN` is **not** a Gist credential. No `.env` or tokens are checked in. Jobs have `contents: read`, serialized concurrency without cancelling a running sync, and a 20-minute timeout. The redacted-schema `last_run.json` is uploaded as a workflow artifact when available, even after failure; no artifact may exist if execution fails before the report is written. Workflow artifacts may require repository access and do not replace the approved anonymous public Gist proof.
+
+**DOCUMENTED limitation:** GitHub Actions schedules can be delayed or dropped; scheduled workflows in public repositories can be disabled after 60 days of repository inactivity. **UNKNOWN:** this workflow has not been enabled or verified in a live scheduled execution, nor does it close R11/R13, G5, or Render's acceptance gates.
+
 ## 4. Logs and public run artifact
 
 The assignment asks to “provide a link to job logs or last run artefact”. Render logs need dashboard access (ASSUMPTION: no public log URL), so reviewers get an **artifact** link.
