@@ -41,6 +41,30 @@ The container writes into its own app-owned filesystem. `docker start --attach` 
 
 Read-only contents permission, serialized non-cancelling runs and a 20-minute timeout remain enabled. Schedules may be delayed/dropped and public-repository schedules may be disabled after 60 days of inactivity. For each scheduled run, confirm its public `run_id` and `git_sha` match the Actions log; configuring cron or dispatching manually does not prove scheduled freshness.
 
+### Scheduled-trigger evidence (temporary validation, 31 Oct 2026)
+
+For a bounded scheduling test, the default-branch cron is temporarily
+set to `*/5 * * * *` (every five minutes) with
+`RILLMARK_SCHEDULE_ENABLED=true`. This tests the GitHub scheduler, not
+a permanent change to the delivery cadence. The production schedule
+will be restored to `0 3 * * *` (03:00 UTC daily).
+
+Three distinct evidence checks are required:
+1. **Configuration:** inspect the cron and job condition in
+   [the workflow](https://github.com/giahuydo/rillmark/blob/main/.github/workflows/rillmark-daily.yml).
+2. **Cloud execution:** a run must have `event=schedule` and
+   `conclusion=success`. The [previous successful Docker sync](https://github.com/giahuydo/rillmark/actions/runs/41178971431)
+   had `event=workflow_dispatch`; it does **not** prove automatic triggering.
+3. **Public artifact:** compare the scheduled run's `git_sha`,
+   `run_id`, `mode=sync` and `publish=ok` with the fixed
+   [Gist](https://gist.github.com/giahuydo/4968a3eec9704d752fbacb239964ee21).
+   A stale Gist or an unsuccessful scheduled run does not close this gate.
+
+**Status before the validation:** no `schedule` run observed. GitHub
+may delay or drop scheduled runs; never label a manual dispatch as a
+scheduled execution. The five-minute validation configuration will be
+removed even if this observation window yields no scheduled run.
+
 ### 3. Scheduling (Render Cron Job)
 
 Legacy section retained for existing links. Render setup is superseded by the GitHub Actions instructions above; no Render service is required.
