@@ -1,4 +1,4 @@
-"""Offline static checks for the optional GitHub Actions scheduler contract."""
+"""Offline static checks for the Docker GitHub Actions scheduler contract."""
 
 import re
 from pathlib import Path
@@ -30,7 +30,7 @@ def test_schedule_and_dispatch_default_to_safe_dry_run() -> None:
     dry = _step("Dry run")
     assert "github.event_name == 'workflow_dispatch'" in dry
     assert "inputs.mode == 'dry-run'" in dry
-    assert "python main.py --dry-run" in dry
+    assert "rillmark-job main.py --dry-run" in dry
     assert "API_KEY:" not in dry
     assert "OPENAI_API_KEY" not in dry
 
@@ -44,7 +44,7 @@ def test_schedule_is_opt_in_and_manual_sync_explicit() -> None:
     live = _step("Live sync")
     assert "github.event_name == 'schedule'" in live
     assert "inputs.mode == 'sync'" in live
-    assert re.search(r"(?m)^        run: python main.py\s*$", live)
+    assert "docker start --attach rillmark-run" in live
     assert "--dry-run" not in live
 
 
@@ -57,9 +57,8 @@ def test_least_privilege_and_bounded_execution() -> None:
     assert "timeout-minutes: 20" in text
     assert "runs-on: ubuntu-latest" in text
     assert re.search(r"uses: actions/checkout@v\d+", text)
-    assert re.search(r"uses: actions/setup-python@v\d+", text)
-    assert 'python-version: "3.12"' in text
-    assert "pip install -r requirements.txt" in text
+    assert "docker build -t rillmark-job ." in _step("Build Docker image")
+    assert "setup-python" not in text
     assert "requirements-dev.txt" not in text
 
 
@@ -83,3 +82,24 @@ def test_report_upload_runs_even_on_failure() -> None:
     assert "uses: actions/upload-artifact@" in artifact
     assert "if: ${{ always() }}" in artifact
     assert re.search(r"(?m)^          path: last_run.json\s*$", artifact)
+
+
+def test_container_exit_and_report_survive_failure() -> None:
+    for name in ("Dry run", "Live sync"):
+        step = _step(name)
+        assert "docker create --name rillmark-run" in step
+        assert step.rstrip().endswith("docker start --attach rillmark-run")
+        assert "--rm" not in step
+        assert "continue-on-error" not in step
+        assert "-v " not in step
+        assert '-e GIT_SHA="$GITHUB_SHA"' in step
+    collect = _step("Collect container report")
+    assert "if: ${{ always() }}" in collect
+    assert "rm -f last_run.json" in collect
+    assert "docker cp rillmark-run:/app/last_run.json last_run.json" in collect
+    assert collect.index("docker cp") < collect.index("docker rm")
+    live = _step("Live sync")
+    assert "for key in API_KEY ARTIFACT_GITHUB_TOKEN ARTIFACT_GIST_ID" in live
+    assert "Required configuration missing: $key" in live
+    assert "-e API_KEY -e ARTIFACT_GITHUB_TOKEN -e ARTIFACT_GIST_ID" in live
+    assert "--build-arg" not in _workflow()

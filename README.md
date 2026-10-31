@@ -30,10 +30,8 @@ Without `VECTOR_STORE_ID`, the job looks for the store tagged `managed_by=rillma
 - **Delta sync:** SHA-256 of the Markdown plus schema and chunk settings, stored as a file attribute. Files are classified added / updated / skipped. A replacement is uploaded and confirmed complete before the old attachment is detached; no global file deletes. Articles removed at the source are reported, not deleted.
 - **Report:** each run writes `last_run.json`. Non-dry runs with both `ARTIFACT_GIST_ID` and `ARTIFACT_GITHUB_TOKEN` also publish it to a gist; if publishing fails, the run exits non-zero.
 
-## Assistant
+## Daily cloud job
 
-Playground Chat + File search on the store above, using the assignment's [system prompt](docs/00-requirements.md#4-system-prompt-verbatim-must-not-be-edited) verbatim. Model and store ID: pending. Saved Playground prompts are scheduled to shut down on 2026-11-30, so the screenshot is the lasting evidence.
+[GitHub Actions](https://github.com/giahuydo/rillmark/actions/workflows/rillmark-daily.yml) builds and runs the Docker image daily at `03:00 UTC` (10:00 Vietnam). After publishing the reviewed workflow on the default branch, configure secrets `OPENAI_API_KEY`, `ARTIFACT_GITHUB_TOKEN` and variable `ARTIFACT_GIST_ID`; `VECTOR_STORE_ID` is optional. Enable `RILLMARK_SCHEDULE_ENABLED=true` only after recurring cost approval. Actions → Run workflow defaults to `dry-run` (no upload or publishing); explicit `sync` requires approval and publishes to the public Gist. Reports are also retained as Actions artifacts, including failures when available. See [operations](docs/04-operations.md#3-scheduling-github-actions).
 
-## Status
-
-Verified: 262 offline tests; live Zendesk dry run (37 files, exit 0); Docker dry run (exit 0) and fail-closed invalid-key run (401, no upload). Live sync uploaded 37 files to the vector store; a second run skipped all 37. Vector-store search returned one chunk per file containing its `Article URL:` line in a three-file sample; this does **not** establish the actual chunk count across the store. The public Gist publish path was verified for a manual run. Open: Playground screenshot and scheduled run. Cut on purpose: splitting oversize articles and deleting source-removed articles. Design: [`docs/`](docs/README.md).
+Scheduled execution is **PENDING**. The Gist currently contains manual evidence; confirm its `run_id`, timestamps and `git_sha` against a real scheduled run before claiming cloud freshness. Schedules may be delayed or disabled after inactivity. Open: Playground screenshot. Cut: oversize splitting and source-removal deletion.

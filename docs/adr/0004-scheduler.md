@@ -1,35 +1,11 @@
-# ADR-0004 — Scheduler: Render Cron Job + Public `last_run.json`
+# ADR-0004 — Scheduler: GitHub Actions + public Gist
 
-Back to [docs index](../README.md). Related: [04-operations](../04-operations.md#3-scheduling-render-cron-job), [02 §5](../02-data-contracts.md#5-last_runjson-public-artifact).
+Status: Accepted. Supersedes the earlier Render Cron decision.
 
-- **Status:** Accepted for Render and public GitHub Gist publisher method. G5 URL, cost and live proof remain UNKNOWN.
+The daily job uses `.github/workflows/rillmark-daily.yml` on GitHub-hosted Ubuntu: build the existing Dockerfile, run its non-root application once, preserve its exit code, and copy the report even after failure. No registry or Render service is required.
 
-## 1. Context
+Schedule: `0 3 * * *` UTC (10:00 Vietnam), gated by repository variable `RILLMARK_SCHEDULE_ENABLED=true` after credentials and recurring cost approval. Manual dispatch defaults to `dry-run`; explicit `sync` requires OpenAI and Gist configuration and `REQUIRE_PUBLISH=true`.
 
-R11 asks to schedule the Docker job once a day on "DigitalOcean or any cloud/public hosting platform (e.g. Railway, Render, Fly.io, AWS, GCP)". R13 asks for "a link to job logs or last run artefact" that a reviewer can open.
+The fixed public Gist remains the anonymous evidence mechanism. Match its timestamp-based `run_id`, `finished_at` and `git_sha` with the corresponding Actions log and uploaded artifact. Existing manual evidence does not verify scheduled execution. A publisher failure must fail the job; the previous public JSON can remain stale.
 
-## 2. Decision
-
-- **Render Cron Job**, runtime Docker, built from the GitHub repo, schedule `0 3 * * *` UTC.
-- **G5 public publisher method APPROVED by the project author: public GitHub Gist.** Update a fixed public `last_run.json` gist using a **gist-scope-only token**, never a broader repo-write credential. Render logs may require dashboard access (ASSUMPTION), so a screenshot is supplementary, not a live link. The exact anonymous raw URL, Render/Gist cost and fresh live proof stay **UNKNOWN** until implementation; approval of the method alone does not close G5 ([04 §4](../04-operations.md#4-logs-and-public-run-artifact)).
-- Scheduled runs require publication. A local/evaluator invocation with only `API_KEY` and no publisher credentials may skip it; this does not establish the scheduled public-link gate. Other publisher backends require separate owner approval if Gist implementation fails.
-- Publisher uses a schema-field allowlist and redacted `errors[]`; no secret, PII, raw Zendesk body, or exception text enters the public artifact. Attempt publication of safe partial/failed sync results without relabeling them success. Exit **0 only when sync and required publish both succeed**. Sync partial/failed → **1**; sync ok but publish failed/unsafe → **1** with `publish_failed` logged to Render/local logs and a safe local error where possible. A stale public URL cannot disclose this failure and must never claim to show the latest attempt. Validate the Gist raw URL anonymously (200, safe JSON, matching the scheduled run's `run_id`/timestamp/status) and exercise partial/failure cases.
-
-## 3. Alternatives considered
-
-| Option | Why not chosen |
-|---|---|
-| GitHub Actions `schedule` | Optional **bonus**, not a replacement for Render: it is a CI system, not clearly one of the named hosting platforms. An opt-in workflow offers daily scheduling and manual dry-run; it does not prove a live scheduled run or a public artifact link. |
-| Railway / Fly.io cron | Equivalent. Render is named in the assignment and has a native Cron Job service type. |
-| DigitalOcean App Platform job / Droplet + crontab | A Droplet needs host management. App Platform is equivalent but has no advantage here. |
-| Always-on container with an in-process scheduler | Violates "runs once and exits", and costs more. |
-
-## 4. Consequences
-
-**GitHub Actions bonus (opt-in):** `.github/workflows/rillmark-daily.yml` adds a `0 3 * * *` UTC schedule gated by repository variable `RILLMARK_SCHEDULE_ENABLED == 'true'`, and a manual dispatch that defaults to `--dry-run` (Zendesk fetch only; no OpenAI call). An explicitly selected manual sync or enabled schedule uses the project-key secret and gist-scope secret plus Gist ID variable with `REQUIRE_PUBLISH=true`; missing Gist configuration fails before store access. Optional `VECTOR_STORE_ID` is still subject to marker validation. The job has read-only contents permission, non-cancelling concurrency and a timeout, and uploads the redacted `last_run.json` artifact when available. It never uses the workflow `GITHUB_TOKEN` to publish the Gist. **DOCUMENTED limitation:** Actions scheduled jobs may be delayed or dropped, and scheduling on a public repository can be disabled after 60 days of inactivity. **UNKNOWN:** no live scheduled execution or anonymous Gist freshness was verified; Actions does not close R11/R13 or supersede Render ([04 §3](../04-operations.md#github-actions-bonus-opt-in)).
-
-- **Cost:** Render Cron Jobs are billed per run-minute (ASSUMPTION, check pricing before P4). Expected about 1 minute a day.
-- **Single command policy:** image exec-form `ENTRYPOINT ["python"]` + `CMD ["main.py"]`; Docker's documented exec-form argv semantics are `docker run <image>` and `docker run <image> main.py` → `python main.py` (not yet exercised with this project image). Render custom command stays **unset** to inherit the image default; Render's actual mapping of unset command to Docker argv remains UNKNOWN. In P4 check its docs/UI and no-upload runtime argv/exit. Only if Render requires a CMD-argument replacement and this is confirmed, enter `main.py` and verify. Never enter `python main.py` as a CMD replacement; stop if Render overrides ENTRYPOINT or behaves differently ([04 §3](../04-operations.md#3-scheduling-render-cron-job)).
-- **Startup/store policy:** primary planned command `docker run -e API_KEY=... <image> main.py` uses versioned non-secret `config/selection.json` (`section_ids` = `[26324076807315, 26324141467539, 26324224269459]`, `youtube_article_id` = `360051014713`, `min_articles` = 30), with optional `SECTION_IDS`/`YOUTUBE_ARTICLE_ID` overrides. Sync validates the full selection, then resolves the store in the key's project. `VECTOR_STORE_ID` set → retrieve it, require vector store `metadata.managed_by = "rillmark-optibot-v1"`, else fail closed. Unset → list stores in the key's project (all pages), filter by the marker: 0 → create named `rillmark-optibot` with marker and no `expires_after`; 1 → reuse; >1 → fail closed. Display name is never used for matching; file-attribute marker remains `managed_by = "rillmark-optibot-v1"`. `--init-store` is removed. A grader's different-project key creates its own marked store; no author's store ID is hardcoded. Primary command remains **UNVERIFIED until G0 + P4** ([04 §2](../04-operations.md#2-docker-contract)).
-- **Secrets:** the project API key and approved public-Gist gist-scope-only credential live in Render environment variables; local Python loads `.env` with `python-dotenv` (exported values take precedence), and Docker configured runs use `--env-file`. Never publish credentials or PII.
-- **Gate (P4/G5):** after G0, verify primary one-flag Docker command in a fresh authorized project and repeat reuse, then one *scheduled* (not manual) run and an anonymous public-Gist link to the same `run_id`. Method approval is not live proof: both primary CLI and G5 URL/freshness remain unverified until exercised. Before the first commit, remove internal tracking IDs, tooling/assistant names and private notes from public-facing root README/published docs; license/ToS for fixtures/raw support content is **UNKNOWN** and must be checked before publication. Commit/push only after the project author approves first-commit contents.
+Actions schedules can be delayed/dropped or disabled after public-repository inactivity. Artifact collection is best effort on cancellation or runner loss. See [operations](../04-operations.md#3-scheduling-github-actions) for setup and verification. A real scheduled run remains PENDING; no paid call or schedule activation is authorized by this configuration change.
