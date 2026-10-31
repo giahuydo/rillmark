@@ -2,8 +2,8 @@
 
 Scrapes public Zendesk help articles to clean Markdown and syncs only new or changed files to an OpenAI Vector Store. Built for a Playground support assistant.
 
-- **Daily job artifact:** pending the first scheduled run.
-- **Assistant screenshot:** pending the first live upload.
+- **Run artifact:** [public `last_run.json`](https://gist.githubusercontent.com/giahuydo/4968a3eec9704d752fbacb239964ee21/raw/last_run.json) ([history](https://gist.github.com/giahuydo/4968a3eec9704d752fbacb239964ee21)). It currently holds the latest **manual** live sync: 37 files skipped on re-run after 37 uploads. Scheduled runs will overwrite it once the scheduler is enabled.
+- **Assistant screenshot:** pending a Playground check.
 
 ## Setup and run
 
@@ -36,4 +36,4 @@ Playground Chat + File search on the store above, using the assignment's [system
 
 ## Status
 
-Verified: 262 offline tests; live Zendesk dry run (37 files, exit 0); Docker dry run (exit 0) and a fail-closed run with an invalid key (401, no upload). Open: live upload, screenshot, scheduled run, public gist. Cut on purpose: splitting oversize articles and deleting source-removed articles. Design: [`docs/`](docs/README.md).
+Verified: 262 offline tests; live Zendesk dry run (37 files, exit 0); Docker dry run (exit 0) and fail-closed invalid-key run (401, no upload). Live sync uploaded 37 files to the vector store; a second run skipped all 37. Vector-store search returned one chunk per file containing its `Article URL:` line in a three-file sample; this does **not** establish the actual chunk count across the store. The public Gist publish path was verified for a manual run. Open: Playground screenshot and scheduled run. Cut on purpose: splitting oversize articles and deleting source-removed articles. Design: [`docs/`](docs/README.md).
