@@ -44,7 +44,7 @@ Without `VECTOR_STORE_ID`, a `managed_by=rillmark-optibot-v1` store is created o
 
 ## Daily cloud job
 
-[GitHub Actions](https://github.com/giahuydo/rillmark/actions/workflows/rillmark-daily.yml) temporarily checks the scheduler every five minutes; normal operation is `03:00 UTC` daily. Manual runs default to `dry-run` (no upload/publish); `sync` requires approval. Actions retains logs and available local reports. See [operations](docs/04-operations.md#3-scheduling-github-actions).
+[GitHub Actions](https://github.com/giahuydo/rillmark/actions/workflows/rillmark-daily.yml) is configured for `03:00 UTC` daily. The temporary 5-minute scheduler check produced no observed `schedule` event; the run trigger remains unverified. Manual runs default to `dry-run` (no upload/publish); `sync` requires approval. Actions retains logs and available local reports. See [operations](docs/04-operations.md#3-scheduling-github-actions).
 
 Confirm public `run_id` and `git_sha` against an Actions run before claiming scheduled freshness. Cut: oversize splitting, source-removal deletion.
 

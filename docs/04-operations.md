@@ -43,11 +43,11 @@ Read-only contents permission, serialized non-cancelling runs and a 20-minute ti
 
 ### Scheduled-trigger evidence (temporary validation, 31 Oct 2026)
 
-For a bounded scheduling test, the default-branch cron is temporarily
-set to `*/5 * * * *` (every five minutes) with
-`RILLMARK_SCHEDULE_ENABLED=true`. This tests the GitHub scheduler, not
-a permanent change to the delivery cadence. The production schedule
-will be restored to `0 3 * * *` (03:00 UTC daily).
+A bounded test temporarily used `*/5 * * * *` on the default
+branch with `RILLMARK_SCHEDULE_ENABLED=true`. The validation commit was
+`1646c27` (31 Oct 2026, 08:41 UTC). The normal schedule has since
+been **restored to `0 3 * * *` (03:00 UTC daily)**. The test was a
+scheduler check, not a change in the intended deployment cadence.
 
 Three distinct evidence checks are required:
 1. **Configuration:** inspect the cron and job condition in
@@ -60,10 +60,17 @@ Three distinct evidence checks are required:
    [Gist](https://gist.github.com/giahuydo/4968a3eec9704d752fbacb239964ee21).
    A stale Gist or an unsuccessful scheduled run does not close this gate.
 
-**Status before the validation:** no `schedule` run observed. GitHub
-may delay or drop scheduled runs; never label a manual dispatch as a
-scheduled execution. The five-minute validation configuration will be
-removed even if this observation window yields no scheduled run.
+**Observed outcome (31 Oct 2026, checked through 08:55 UTC):**
+`gh run list --workflow rillmark-daily.yml --event schedule` returned
+an empty list. No scheduled execution was observed during this window,
+even though Actions was enabled, the workflow was active on default
+branch `main`, and `RILLMARK_SCHEDULE_ENABLED=true`. Prior successful
+runs were both `workflow_dispatch`. This is **not proof that scheduled
+execution is broken**: GitHub may delay/drop events. **Status:
+scheduled-run evidence PENDING.** A later investigation can check
+GitHub's schedule delivery and actions settings; do not change the
+production cadence or claim success without a real `event=schedule`
+run and matching Gist data.
 
 ### 3. Scheduling (Render Cron Job)
 
