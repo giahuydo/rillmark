@@ -3,22 +3,28 @@
 Scrapes Zendesk articles to Markdown and delta-syncs an OpenAI Vector Store for a Playground support assistant.
 
 - **Run artifact:** [public `last_run.json`](https://gist.githubusercontent.com/giahuydo/4968a3eec9704d752fbacb239964ee21/raw/last_run.json) shows the latest published run; compare `run_id` with Actions logs for freshness.
-- **Assistant screenshot:** pending a Playground check.
+- **Assistant evidence:** Playground screenshot below shows the required YouTube answer and uploaded-file citation; the first reply does not print the full `Article URL:` line.
 
-## Setup and run
+## Setup
 
 ```bash
 python3.12 -m venv .venv && . .venv/bin/activate
 pip install -r requirements-dev.txt
-cp .env.sample .env              # set API_KEY (OpenAI project key)
+cp .env.sample .env
+```
 
-python main.py --dry-run         # fetch + convert to out/*.md; no OpenAI calls, no key
-python main.py --limit 3         # pilot: uploads at most 3 files, never detaches or deletes
-python main.py                   # full sync; writes last_run.json; exit 0 only on full success
-pytest                           # offline tests
+Set `API_KEY` (OpenAI project key) in `.env` for uploads; dry-run needs no key.
+
+## How to run locally
+
+```bash
+python main.py --dry-run          # scrape to out/*.md; no OpenAI calls
+python main.py --limit 3          # 3-file upload pilot; API_KEY required
+python main.py                    # full delta sync; API_KEY required
+pytest                            # offline tests
 
 docker build -t rillmark .
-docker run -e API_KEY=sk-... rillmark main.py
+docker run --env-file .env rillmark main.py  # one-shot Docker sync
 ```
 
 Without `VECTOR_STORE_ID`, a `managed_by=rillmark-optibot-v1` store is created or reused by marker (ambiguity fails closed). `config/selection.json` selects 37 articles including YouTube.
@@ -38,4 +44,10 @@ The assignment requires only logs or a last-run artifact. Beyond that, `last_run
 
 [GitHub Actions](https://github.com/giahuydo/rillmark/actions/workflows/rillmark-daily.yml) runs Docker at `03:00 UTC` when enabled. Manual runs default to `dry-run` (no upload/publish); `sync` requires approval. Actions retains logs and available local reports. See [operations](docs/04-operations.md#3-scheduling-github-actions).
 
-Confirm public `run_id` and `git_sha` against an Actions run before claiming scheduled freshness. Open: Playground screenshot. Cut: oversize splitting, source-removal deletion.
+Confirm public `run_id` and `git_sha` against an Actions run before claiming scheduled freshness. Cut: oversize splitting, source-removal deletion.
+
+## Playground screenshot
+
+![OptiBot answering the YouTube question using File Search, with a citation to the uploaded Markdown article](docs/screenshots/openai/optibot-youtube-playground.png)
+
+For architecture, design decisions, testing, and detailed operations, see the [Engineering documentation](docs/README.md).
