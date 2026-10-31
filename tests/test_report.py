@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import traceback
 from dataclasses import replace
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -316,6 +317,22 @@ def test_write_local_round_trips_utf8_sorted_json(tmp_path: Path) -> None:
     assert json.loads(text) == doc
 
 
+class FakeGetter:
+    def __init__(
+        self, files: dict | None = None, status: int = 200, error: Exception | None = None
+    ) -> None:
+        self.files = {} if files is None else files
+        self.status = status
+        self.error = error
+        self.calls: list[tuple[str, dict]] = []
+
+    def __call__(self, url: str, headers: dict) -> tuple[int, dict]:
+        self.calls.append((url, headers))
+        if self.error:
+            raise self.error
+        return self.status, {"files": self.files}
+
+
 class FakePoster:
     def __init__(
         self,
@@ -335,10 +352,23 @@ class FakePoster:
         return self.status, self.body
 
 
-def test_gist_publisher_sends_fixed_file_to_injected_patch() -> None:
+def gist_file(doc: dict) -> dict:
+    return {"content": json.dumps(doc)}
+
+
+def published_files(poster: FakePoster) -> dict:
+    return poster.calls[-1][2]["files"]
+
+
+def history_runs(poster: FakePoster) -> list[dict]:
+    return json.loads(published_files(poster)["history.json"]["content"])["runs"]
+
+
+def test_gist_publisher_sends_fixed_file_to_injected_patch(result: RunResult) -> None:
     poster = FakePoster()
-    publisher = GistPublisher("123", "ghp_fakeTestToken", poster)
-    payload = '{"run_id":"example"}\n'
+    getter = FakeGetter()
+    publisher = GistPublisher("123", "ghp_fakeTestToken", poster, getter)
+    payload = json.dumps(build_last_run(result, PublishStatus.OK)) + "\n"
 
     url = publisher.publish(payload)
 
@@ -348,24 +378,479 @@ def test_gist_publisher_sends_fixed_file_to_injected_patch() -> None:
     assert request_url == "https://api.github.com/gists/123"
     assert headers["Authorization"] == "Bearer ghp_fakeTestToken"
     assert headers["Accept"] == "application/vnd.github+json"
-    assert body == {"files": {"last_run.json": {"content": payload}}}
+    assert body["files"]["last_run.json"] == {"content": payload}
+    history = json.loads(body["files"]["history.json"]["content"])
+    assert (
+        history["schema_version"] == 1 and history["retention"] == 30 and len(history["runs"]) == 1
+    )
+    assert history["runs"][0]["run_id"] == result.run_id
+    assert len(getter.calls) == 1
+
+
+def test_initial_history_seeds_existing_last_run_and_preserves_other_files(
+    result: RunResult,
+) -> None:
+    earlier = build_last_run(
+        replace(result, run_id="2026-11-01T03:00:04Z", started_at="2026-11-01T03:00:04Z"),
+        PublishStatus.OK,
+    )
+    current = build_last_run(result, PublishStatus.OK)
+    getter = FakeGetter({"last_run.json": gist_file(earlier), "notes.txt": {"content": "retain"}})
+    poster = FakePoster()
+
+    GistPublisher("123", "token", poster, getter).publish(json.dumps(current))
+
+    assert [run["run_id"] for run in history_runs(poster)] == [result.run_id, earlier["run_id"]]
+    assert published_files(poster)["last_run.json"]["content"] == json.dumps(current)
+    assert "notes.txt" not in published_files(poster)
+    assert getter.files["notes.txt"] == {"content": "retain"}
+    assert "notes.txt" in getter.files
+
+
+def test_history_serialization_is_deterministic(result: RunResult) -> None:
+    getter = FakeGetter()
+    poster = FakePoster()
+    publisher = GistPublisher("123", "token", poster, getter)
+    payload = json.dumps(build_last_run(result, PublishStatus.OK))
+    publisher.publish(payload)
+    first = published_files(poster)["history.json"]["content"]
+    getter.files = published_files(poster)
+    publisher.publish(payload)
+    assert published_files(poster)["history.json"]["content"] == first
+    assert first.endswith("\n") and not first.endswith("\n\n")
+
+
+def test_second_published_run_adds_newest_entry(result: RunResult) -> None:
+    first = build_last_run(
+        replace(
+            result,
+            run_id="2026-11-01T03:00:04Z",
+            started_at="2026-11-01T03:00:04Z",
+            finished_at="2026-11-01T03:01:04Z",
+        ),
+        PublishStatus.OK,
+    )
+    second = build_last_run(result, PublishStatus.OK)
+    getter = FakeGetter()
+    poster = FakePoster()
+    publisher = GistPublisher("123", "token", poster, getter)
+    publisher.publish(json.dumps(first))
+    getter.files = published_files(poster)
+    publisher.publish(json.dumps(second))
+    assert [entry["run_id"] for entry in history_runs(poster)] == [
+        second["run_id"],
+        first["run_id"],
+    ]
+    assert json.loads(published_files(poster)["last_run.json"]["content"]) == second
+
+
+def test_history_republishing_replaces_matching_run_without_duplication(result: RunResult) -> None:
+    current = build_last_run(result, PublishStatus.OK)
+    previous = {
+        key: current[key]
+        for key in (
+            "run_id",
+            "started_at",
+            "finished_at",
+            "mode",
+            "status",
+            "publish",
+            "git_sha",
+            "counts",
+        )
+    }
+    previous["counts"] = {**previous["counts"], "added": 1}
+    getter = FakeGetter(
+        {"history.json": gist_file({"schema_version": 1, "retention": 30, "runs": [previous]})}
+    )
+    poster = FakePoster()
+    publisher = GistPublisher("123", "token", poster, getter)
+
+    publisher.publish(json.dumps(current))
+    getter.files = {
+        "history.json": published_files(poster)["history.json"],
+        "last_run.json": published_files(poster)["last_run.json"],
+    }
+    publisher.publish(json.dumps(current))
+
+    assert len(history_runs(poster)) == 1
+    assert history_runs(poster)[0]["counts"]["added"] == 2
+    assert set(history_runs(poster)[0]) == {
+        "run_id",
+        "started_at",
+        "finished_at",
+        "mode",
+        "status",
+        "publish",
+        "git_sha",
+        "counts",
+    }
+    assert set(history_runs(poster)[0]["counts"]) == {
+        "fetched",
+        "selected",
+        "added",
+        "updated",
+        "skipped",
+        "deleted",
+        "failed",
+    }
+
+
+def test_exactly_thirty_history_records_remains_bounded(result: RunResult) -> None:
+    current = build_last_run(result, PublishStatus.OK)
+    runs = []
+    for day in range(1, 31):
+        stamp = (datetime(2026, 10, 1, tzinfo=UTC) + timedelta(days=day)).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        )
+        runs.append(
+            {
+                **{key: current[key] for key in ("mode", "status", "publish", "git_sha", "counts")},
+                "run_id": stamp,
+                "started_at": stamp,
+                "finished_at": stamp,
+            }
+        )
+    getter = FakeGetter(
+        {
+            "history.json": gist_file({"schema_version": 1, "retention": 30, "runs": runs}),
+            "last_run.json": gist_file(
+                {
+                    **current,
+                    "run_id": runs[-1]["run_id"],
+                    "started_at": runs[-1]["started_at"],
+                    "finished_at": runs[-1]["finished_at"],
+                }
+            ),
+        }
+    )
+    poster = FakePoster()
+    GistPublisher("123", "token", poster, getter).publish(json.dumps(current))
+    assert len(history_runs(poster)) == 30
+    assert history_runs(poster)[0]["run_id"] == current["run_id"]
+    assert runs[0]["run_id"] not in {entry["run_id"] for entry in history_runs(poster)}
+
+
+def test_history_retains_latest_thirty_with_stable_order(result: RunResult) -> None:
+    current = build_last_run(result, PublishStatus.OK)
+    runs = []
+    for day in range(1, 32):
+        stamp = (datetime(2026, 10, 1, tzinfo=UTC) + timedelta(days=day)).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        )
+        runs.append(
+            {
+                **{key: current[key] for key in ("mode", "status", "publish", "git_sha", "counts")},
+                "run_id": stamp,
+                "started_at": stamp,
+                "finished_at": stamp,
+            }
+        )
+    getter = FakeGetter(
+        {
+            "history.json": gist_file({"schema_version": 1, "retention": 30, "runs": runs}),
+            "last_run.json": gist_file(
+                {
+                    **current,
+                    "run_id": runs[-1]["run_id"],
+                    "started_at": runs[-1]["started_at"],
+                    "finished_at": runs[-1]["finished_at"],
+                }
+            ),
+        }
+    )
+    poster = FakePoster()
+
+    GistPublisher("123", "token", poster, getter).publish(json.dumps(current))
+
+    assert len(history_runs(poster)) == 30
+    assert [run["run_id"] for run in history_runs(poster)] == sorted(
+        {run["run_id"] for run in runs} | {result.run_id}, reverse=True
+    )[:30]
+
+
+def test_older_run_never_rolls_back_last_run(result: RunResult) -> None:
+    older = build_last_run(result, PublishStatus.OK)
+    newer = {
+        **older,
+        "run_id": "2026-11-03T03:00:04Z",
+        "started_at": "2026-11-03T03:00:04Z",
+        "finished_at": "2026-11-03T03:01:04Z",
+    }
+    getter = FakeGetter({"last_run.json": gist_file(newer)})
+    poster = FakePoster()
+
+    GistPublisher("123", "token", poster, getter).publish(json.dumps(older))
+
+    assert (
+        published_files(poster)["last_run.json"]["content"]
+        == getter.files["last_run.json"]["content"]
+    )
+    assert json.loads(published_files(poster)["last_run.json"]["content"]) == newer
+    assert [run["run_id"] for run in history_runs(poster)] == [newer["run_id"], older["run_id"]]
+
+
+@pytest.mark.parametrize("status", [RunStatus.PARTIAL_FAILURE, RunStatus.FAILED])
+def test_history_keeps_failed_sync_status_and_part_file_counts(
+    result: RunResult, status: RunStatus
+) -> None:
+    doc = build_last_run(
+        replace(result, status=status, delta=DeltaCounts(updated=2, failed=1)), PublishStatus.OK
+    )
+    poster = FakePoster()
+
+    GistPublisher("123", "token", poster, FakeGetter()).publish(json.dumps(doc))
+
+    assert history_runs(poster)[0]["status"] == status.value
+    assert history_runs(poster)[0]["counts"]["updated"] == 2
+    assert history_runs(poster)[0]["counts"]["failed"] == 1
+    assert history_runs(poster)[0]["publish"] == "ok"
+
+
+@pytest.mark.parametrize(
+    "invalid",
+    [
+        "{",
+        "[]",
+        '{"schema_version": 1, "retention": 30, "runs": {}}',
+        '{"schema_version": 1, "retention": 30, "runs": [], "secret": "x"}',
+    ],
+)
+def test_malformed_history_fails_closed(result: RunResult, invalid: str) -> None:
+    poster = FakePoster()
+    getter = FakeGetter({"history.json": {"content": invalid}})
+    with pytest.raises(PublishError):
+        GistPublisher("123", "token", poster, getter).publish(
+            json.dumps(build_last_run(result, PublishStatus.OK))
+        )
+    assert poster.calls == []
+
+
+def test_duplicate_json_keys_in_history_fail_closed(result: RunResult) -> None:
+    poster = FakePoster()
+    getter = FakeGetter(
+        {"history.json": {"content": ('{"schema_version":1,"retention":30,"runs":[],"runs":[]}')}}
+    )
+    with pytest.raises(PublishError):
+        GistPublisher("123", "token", poster, getter).publish(
+            json.dumps(build_last_run(result, PublishStatus.OK))
+        )
+    assert poster.calls == []
+
+
+@pytest.mark.parametrize("status", [401, 403, 404, 429, 500])
+def test_get_errors_fail_closed_without_token(result: RunResult, status: int) -> None:
+    poster = FakePoster()
+    token = "ghp_fakeTestToken"
+    getter = FakeGetter(status=status)
+    with pytest.raises(PublishError) as caught:
+        GistPublisher("123", token, poster, getter).publish(
+            json.dumps(build_last_run(result, PublishStatus.OK))
+        )
+    assert token not in "".join(traceback.format_exception(caught.value))
+    assert poster.calls == []
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {},
+        {"files": None},
+        {"files": []},
+        {"files": {"history.json": {"truncated": True, "content": "{}"}}},
+    ],
+)
+def test_get_unexpected_response_fails_closed(result: RunResult, body: dict) -> None:
+    poster = FakePoster()
+
+    def unexpected(url: str, headers: dict) -> tuple[int, dict]:
+        return 200, body
+
+    with pytest.raises(PublishError):
+        GistPublisher("123", "token", poster, unexpected).publish(
+            json.dumps(build_last_run(result, PublishStatus.OK))
+        )
+    assert poster.calls == []
+
+
+def test_get_timeout_fails_closed_without_token(result: RunResult) -> None:
+    token = "ghp_fakeTestToken"
+    poster = FakePoster()
+    with pytest.raises(PublishError) as caught:
+        GistPublisher("123", token, poster, FakeGetter(error=TimeoutError(token))).publish(
+            json.dumps(build_last_run(result, PublishStatus.OK))
+        )
+    assert token not in "".join(traceback.format_exception(caught.value))
+    assert poster.calls == []
+
+
+def test_malformed_existing_last_run_fails_closed(result: RunResult) -> None:
+    poster = FakePoster()
+    getter = FakeGetter({"last_run.json": {"content": '{"run_id":"unsafe"}'}})
+    with pytest.raises(PublishError):
+        GistPublisher("123", "token", poster, getter).publish(
+            json.dumps(build_last_run(result, PublishStatus.OK))
+        )
+    assert poster.calls == []
+
+
+def test_history_with_newer_run_and_missing_last_run_fails_closed(result: RunResult) -> None:
+    current = build_last_run(result, PublishStatus.OK)
+    newer = {
+        **{
+            key: current[key]
+            for key in (
+                "run_id",
+                "started_at",
+                "finished_at",
+                "mode",
+                "status",
+                "publish",
+                "git_sha",
+                "counts",
+            )
+        },
+        "run_id": "2026-11-03T03:00:04Z",
+        "started_at": "2026-11-03T03:00:04Z",
+        "finished_at": "2026-11-03T03:01:04Z",
+    }
+    getter = FakeGetter(
+        {"history.json": gist_file({"schema_version": 1, "retention": 30, "runs": [newer]})}
+    )
+    poster = FakePoster()
+    with pytest.raises(PublishError):
+        GistPublisher("123", "token", poster, getter).publish(json.dumps(current))
+    assert poster.calls == []
+
+
+def test_empty_history_and_missing_last_run_creates_single_record(result: RunResult) -> None:
+    poster = FakePoster()
+    getter = FakeGetter(
+        {"history.json": gist_file({"schema_version": 1, "retention": 30, "runs": []})}
+    )
+    GistPublisher("123", "token", poster, getter).publish(
+        json.dumps(build_last_run(result, PublishStatus.OK))
+    )
+    assert len(history_runs(poster)) == 1
+
+
+@pytest.mark.parametrize("field", ["token", "raw_body", "errors", "email"])
+def test_history_rejects_unexpected_metadata(result: RunResult, field: str) -> None:
+    previous = build_last_run(result, PublishStatus.OK)
+    record = {
+        key: previous[key]
+        for key in (
+            "run_id",
+            "started_at",
+            "finished_at",
+            "mode",
+            "status",
+            "publish",
+            "git_sha",
+            "counts",
+        )
+    }
+    record[field] = "private"
+    poster = FakePoster()
+    getter = FakeGetter(
+        {"history.json": gist_file({"schema_version": 1, "retention": 30, "runs": [record]})}
+    )
+    with pytest.raises(PublishError):
+        GistPublisher("123", "token", poster, getter).publish(json.dumps(previous))
+    assert poster.calls == []
+
+
+def test_conflicting_latest_run_in_existing_history_fails_closed(result: RunResult) -> None:
+    current = build_last_run(result, PublishStatus.OK)
+    old = build_last_run(
+        replace(
+            result,
+            run_id="2026-11-01T03:00:04Z",
+            started_at="2026-11-01T03:00:04Z",
+            finished_at="2026-11-01T03:01:04Z",
+        ),
+        PublishStatus.OK,
+    )
+    conflict = {
+        key: old[key]
+        for key in (
+            "run_id",
+            "started_at",
+            "finished_at",
+            "mode",
+            "status",
+            "publish",
+            "git_sha",
+            "counts",
+        )
+    }
+    conflict["counts"] = {**conflict["counts"], "failed": 1}
+    getter = FakeGetter(
+        {
+            "history.json": gist_file({"schema_version": 1, "retention": 30, "runs": [conflict]}),
+            "last_run.json": gist_file(old),
+        }
+    )
+    poster = FakePoster()
+    with pytest.raises(PublishError):
+        GistPublisher("123", "token", poster, getter).publish(json.dumps(current))
+    assert poster.calls == []
+
+
+def test_public_payload_rejects_unsafe_fields_before_get(result: RunResult) -> None:
+    getter = FakeGetter()
+    poster = FakePoster()
+    doc = build_last_run(result, PublishStatus.OK)
+    doc["private_note"] = "secret"
+
+    with pytest.raises(PublishError):
+        GistPublisher("123", "token", poster, getter).publish(json.dumps(doc))
+
+    assert getter.calls == []
+    assert poster.calls == []
+
+
+def test_existing_history_keeps_prior_failure_status(result: RunResult) -> None:
+    old = build_last_run(
+        replace(
+            result,
+            run_id="2026-11-01T03:00:04Z",
+            started_at="2026-11-01T03:00:04Z",
+            finished_at="2026-11-01T03:01:04Z",
+            status=RunStatus.FAILED,
+            delta=DeltaCounts(failed=1),
+        ),
+        PublishStatus.OK,
+    )
+    getter = FakeGetter({"last_run.json": gist_file(old)})
+    poster = FakePoster()
+    GistPublisher("123", "token", poster, getter).publish(
+        json.dumps(build_last_run(result, PublishStatus.OK))
+    )
+    assert history_runs(poster)[1]["status"] == "failed"
+    assert history_runs(poster)[1]["counts"]["failed"] == 1
 
 
 @pytest.mark.parametrize("status", [200, 201, 299])
-def test_gist_publisher_accepts_success_status(status: int) -> None:
-    publisher = GistPublisher("123", "fake-token", FakePoster(status=status))
+def test_gist_publisher_accepts_success_status(status: int, result: RunResult) -> None:
+    publisher = GistPublisher("123", "fake-token", FakePoster(status=status), FakeGetter())
 
-    assert publisher.publish("{}") == "https://gist.github.com/example/123"
+    assert (
+        publisher.publish(json.dumps(build_last_run(result, PublishStatus.OK)))
+        == "https://gist.github.com/example/123"
+    )
 
 
 @pytest.mark.parametrize("status", [199, 300, 401, 429, 500])
-def test_gist_publisher_rejects_non_success_without_response_details(status: int) -> None:
+def test_gist_publisher_rejects_non_success_without_response_details(
+    status: int, result: RunResult
+) -> None:
     token = "ghp_fakeTestToken"
     poster = FakePoster(status=status, body={"message": token})
-    publisher = GistPublisher("123", token, poster)
+    publisher = GistPublisher("123", token, poster, FakeGetter())
 
     with pytest.raises(PublishError) as caught:
-        publisher.publish("{}")
+        publisher.publish(json.dumps(build_last_run(result, PublishStatus.OK)))
 
     assert token not in str(caught.value)
     assert len(poster.calls) == 1
@@ -374,38 +859,49 @@ def test_gist_publisher_rejects_non_success_without_response_details(status: int
 @pytest.mark.parametrize("error_type", [OSError, TimeoutError, ValueError, RuntimeError])
 def test_gist_publisher_wraps_callback_exception_without_token(
     error_type: type[Exception],
+    result: RunResult,
 ) -> None:
     token = "ghp_fakeTestToken"
-    publisher = GistPublisher("123", token, FakePoster(error=error_type(f"Bearer {token}")))
+    publisher = GistPublisher(
+        "123", token, FakePoster(error=error_type(f"Bearer {token}")), FakeGetter()
+    )
 
     with pytest.raises(PublishError) as caught:
-        publisher.publish("{}")
+        publisher.publish(json.dumps(build_last_run(result, PublishStatus.OK)))
 
     assert token not in str(caught.value)
     assert token not in "".join(traceback.format_exception(caught.value))
 
 
 @pytest.mark.parametrize("body", [{}, {"html_url": None}, {"html_url": 123}, {"html_url": ""}])
-def test_gist_publisher_rejects_missing_public_url(body: dict) -> None:
-    publisher = GistPublisher("123", "fake-token", FakePoster(body=body))
+def test_gist_publisher_rejects_missing_public_url(body: dict, result: RunResult) -> None:
+    publisher = GistPublisher("123", "fake-token", FakePoster(body=body), FakeGetter())
 
     with pytest.raises(PublishError):
-        publisher.publish("{}")
+        publisher.publish(json.dumps(build_last_run(result, PublishStatus.OK)))
 
 
 @pytest.mark.parametrize(
     ("publisher", "expected"),
     [
         (None, PublishStatus.SKIPPED),
-        (GistPublisher("123", "fake-token", FakePoster()), PublishStatus.OK),
-        (GistPublisher("123", "fake-token", FakePoster(status=503)), PublishStatus.FAILED),
+        (GistPublisher("123", "fake-token", FakePoster(), FakeGetter()), PublishStatus.OK),
         (
-            GistPublisher("123", "fake-token", FakePoster(error=OSError("Unavailable"))),
+            GistPublisher("123", "fake-token", FakePoster(status=503), FakeGetter()),
+            PublishStatus.FAILED,
+        ),
+        (
+            GistPublisher(
+                "123", "fake-token", FakePoster(error=OSError("Unavailable")), FakeGetter()
+            ),
             PublishStatus.FAILED,
         ),
     ],
 )
 def test_publish_artifact_maps_optional_publisher_outcome(
-    publisher: GistPublisher | None, expected: PublishStatus
+    publisher: GistPublisher | None, expected: PublishStatus, result: RunResult
 ) -> None:
-    assert publish_artifact(publisher, "{}") is expected
+    assert (
+        publish_artifact(publisher, json.dumps(build_last_run(result, PublishStatus.OK)))
+        is expected
+    )

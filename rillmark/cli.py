@@ -63,6 +63,14 @@ def _default_publisher(config: Config) -> Publisher | None:
         return None
     import requests
 
+    def get(url: str, headers: dict) -> tuple[int, dict]:
+        response = requests.get(url, headers=headers, timeout=(5, 30))
+        try:
+            payload = response.json()
+        except ValueError:
+            payload = {}
+        return response.status_code, payload if isinstance(payload, dict) else {}
+
     def post(url: str, headers: dict, body: dict) -> tuple[int, dict]:  # GistPublisher order
         response = requests.patch(url, json=body, headers=headers, timeout=(5, 30))
         try:
@@ -71,7 +79,7 @@ def _default_publisher(config: Config) -> Publisher | None:
             payload = {}
         return response.status_code, payload if isinstance(payload, dict) else {}
 
-    return report.GistPublisher(config.gist_id, config.gist_token, post)
+    return report.GistPublisher(config.gist_id, config.gist_token, post, get)
 
 
 @dataclass(frozen=True)

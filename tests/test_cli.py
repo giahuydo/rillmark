@@ -265,6 +265,11 @@ def test_publish_failure_exits_nonzero_and_records_publish_failed(tmp_path: Path
     assert code == 1
     assert doc["publish"] == "failed"
     assert doc["status"] == "failed"
+    assert doc["errors"][-1] == {
+        "article_id": None,
+        "stage": "publish",
+        "message": "Artifact publication failed.",
+    }
 
 
 def test_publish_success_sends_the_run_artifact(tmp_path: Path) -> None:
@@ -403,6 +408,20 @@ def test_optional_publish_without_gist_config_is_skipped(tmp_path: Path, require
     assert last_run(tmp_path)["publish"] == "skipped"
 
 
+def test_dry_run_never_constructs_publisher_even_with_gist_config(tmp_path: Path) -> None:
+    calls = []
+
+    def factory(config):
+        calls.append(config)
+        raise AssertionError("publisher should not be constructed")
+
+    d = replace(deps(tmp_path, catalog()), publisher_factory=factory)
+    code = run(["--dry-run"], {"ARTIFACT_GIST_ID": "g", "ARTIFACT_GITHUB_TOKEN": "test"}, d)
+    assert code == 0
+    assert calls == []
+    assert last_run(tmp_path)["publish"] == "skipped"
+
+
 def test_dry_run_ignores_required_publish_without_gist_config(tmp_path: Path) -> None:
     calls: list[str] = []
     code = run(["--dry-run"], {"REQUIRE_PUBLISH": "true"}, deps(tmp_path, catalog(), calls=calls))
@@ -439,6 +458,27 @@ def test_output_dir_io_error_still_writes_failed_artifact(tmp_path: Path) -> Non
     assert doc["errors"][0]["stage"] == "convert"
 
 
+def test_get_failure_preserves_nonzero_exit_and_local_failure(tmp_path: Path, caplog) -> None:
+    from rillmark.report import GistPublisher
+
+    def get(url: str, headers: dict) -> tuple[int, dict]:
+        return 403, {"message": "ghp_privateTestToken"}
+
+    def post(url: str, headers: dict, body: dict) -> tuple[int, dict]:
+        raise AssertionError("PATCH must not run")
+
+    publisher = GistPublisher("123", "ghp_privateTestToken", post, get)
+    d = deps(tmp_path, catalog(), FakeStore(), publisher=publisher)
+    code = run([], ENV, d)
+    doc = last_run(tmp_path)
+    assert code == 1
+    assert doc["publish"] == "failed"
+    assert doc["status"] == "failed"
+    assert doc["errors"][-1]["stage"] == "publish"
+    assert "ghp_privateTestToken" not in (tmp_path / "last_run.json").read_text()
+    assert "ghp_privateTestToken" not in caplog.text
+
+
 def test_publish_failure_logs_publish_failed_with_sync_status(tmp_path: Path, caplog) -> None:
     import logging
 
@@ -448,7 +488,9 @@ def test_publish_failure_logs_publish_failed_with_sync_status(tmp_path: Path, ca
     assert events and "sync_status=success" in events[0]
 
 
-def test_default_publisher_sends_gist_patch_with_token_header(monkeypatch, tmp_path: Path) -> None:
+def test_default_publisher_reads_then_patches_gist_with_token_header(
+    monkeypatch, tmp_path: Path
+) -> None:
     import requests
 
     from rillmark.cli import _default_publisher
@@ -459,20 +501,53 @@ def test_default_publisher_sends_gist_patch_with_token_header(monkeypatch, tmp_p
     class Response:
         status_code = 200
 
+        def __init__(self, body: dict) -> None:
+            self.body = body
+
         def json(self) -> dict:
-            return {"html_url": "https://gist.github.com/abc"}
+            return self.body
+
+    def fake_get(url, headers=None, timeout=None):
+        sent["get"] = (url, headers, timeout)
+        return Response({"files": {}})
 
     def fake_patch(url, json=None, headers=None, timeout=None):
         sent.update(url=url, json=json, headers=headers, timeout=timeout)
-        return Response()
+        return Response({"html_url": "https://gist.github.com/abc"})
 
+    monkeypatch.setattr(requests, "get", fake_get)
     monkeypatch.setattr(requests, "patch", fake_patch)
     env = {"ARTIFACT_GIST_ID": "abc", "ARTIFACT_GITHUB_TOKEN": "tok"}
     publisher = _default_publisher(load_config(env, SELECTION))
     assert publisher is not None
-    assert publisher.publish('{"run_id": "x"}') == "https://gist.github.com/abc"
+    from rillmark.models import DeltaCounts, PublishStatus, RunMode, RunResult, RunStatus
+    from rillmark.report import build_last_run
+
+    result = RunResult(
+        "2026-10-31T00:00:00Z",
+        RunMode.SYNC,
+        RunStatus.SUCCESS,
+        "2026-10-31T00:00:00Z",
+        "2026-10-31T00:00:10Z",
+        None,
+        None,
+        0,
+        0,
+        DeltaCounts(),
+        None,
+        (),
+        (),
+        ChunkConfig(4096, 0),
+    )
+    payload = json.dumps(build_last_run(result, PublishStatus.OK))
+    assert publisher.publish(payload) == "https://gist.github.com/abc"
+    assert sent["get"] == ("https://api.github.com/gists/abc", sent["headers"], (5, 30))
     assert sent["url"] == "https://api.github.com/gists/abc"
-    assert sent["json"] == {"files": {"last_run.json": {"content": '{"run_id": "x"}'}}}
+    assert sent["json"]["files"]["last_run.json"] == {"content": payload}
+    assert (
+        json.loads(sent["json"]["files"]["history.json"]["content"])["runs"][0]["run_id"]
+        == result.run_id
+    )
     assert sent["headers"]["Authorization"] == "Bearer tok"
     assert sent["timeout"] == (5, 30)
 

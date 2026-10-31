@@ -115,6 +115,32 @@ Store identity: vector store `metadata.managed_by = "rillmark-optibot-v1"` (retr
 
 `counts.fetched` and `counts.selected` are distinct Zendesk article counts. Delta counts (`added`, `updated`, `skipped`, `deleted`, `failed`) count file-attachment operations by canonical `article_id/part` (unsplit = part 1), **not** articles or embedded chunks. `deleted` is only successful store-scoped replacement detaches; source absence never increments it. `deletion_candidates` logs absent managed article IDs/count only; no source-absence detach/delete, including in pilot. `store.files_in_store` counts all attachments (including foreign files), `store.files_completed` all completed attachments; `files.actual` is the actual provider `file_counts.completed` and `store.managed_files_completed` counts completed managed file attachments. Neither is an embedded chunk count. If remote observation fails, these counts are `null`, never fabricated zero; in dry-run remote counts are `null`. Pilot counts must be labeled `mode=pilot` and cannot be presented as full convergence. `chunks.estimated` is a tokenizer/config estimate with `chunks.basis`; `chunks.actual = null`. G3 stays **UNKNOWN**: retrieval verifies citations, not chunk cardinality ([ADR-0002](adr/0002-chunking-and-citation.md#4-chunk-count-logging-gate-g3)). `publish=failed` yields exit 1 and `publish_failed`; a public URL may remain stale and never claims to be the latest attempt. The artifact holds no secrets.
 
+## 5a. `history.json` (optional public run history)
+
+In the same fixed Gist as `last_run.json`, the publisher additionally writes:
+
+```json
+{
+  "schema_version": 1,
+  "retention": 30,
+  "runs": [
+    {
+      "run_id": "2026-11-02T03:00:04Z",
+      "started_at": "2026-11-02T03:00:04Z",
+      "finished_at": "2026-11-02T03:01:04Z",
+      "mode": "sync",
+      "status": "success",
+      "publish": "ok",
+      "git_sha": "d3f57ffe861430845627dd2933fd85fd0b1db9bc",
+      "counts": { "fetched": 37, "selected": 37, "added": 0, "updated": 0,
+                  "skipped": 37, "deleted": 0, "failed": 0 }
+    }
+  ]
+}
+```
+
+The top-level keys and record keys are fixed. Each record contains only a successfully **published** run, including a sync that ended `partial_failure` or `failed`; `publish` is always `ok`. `counts` has exactly the same article and part-file units as §5. `run_id` is the unique key; newest run first, at most 30. Prior records retain their original status and counts. No raw errors, store IDs, source content, credentials or arbitrary metadata are included. JSON serialization is sorted, indented UTF-8 with a trailing newline. This does not add fields to `last_run.json`.
+
 ## 6. Acceptance gates
 
 - [ ] Fixture tests cover every row in §3 ([05](05-testing.md#2-test-matrix)).

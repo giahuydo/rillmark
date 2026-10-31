@@ -1,8 +1,8 @@
 # Rillmark
 
-Scrapes public Zendesk help articles to clean Markdown and syncs only new or changed files to an OpenAI Vector Store. Built for a Playground support assistant.
+Scrapes Zendesk articles to Markdown and delta-syncs an OpenAI Vector Store for a Playground support assistant.
 
-- **Run artifact:** [public `last_run.json`](https://gist.githubusercontent.com/giahuydo/4968a3eec9704d752fbacb239964ee21/raw/last_run.json) ([history](https://gist.github.com/giahuydo/4968a3eec9704d752fbacb239964ee21)). It currently holds the latest **manual** live sync: 37 files skipped on re-run after 37 uploads. Scheduled runs will overwrite it once the scheduler is enabled.
+- **Run artifact:** [public `last_run.json`](https://gist.githubusercontent.com/giahuydo/4968a3eec9704d752fbacb239964ee21/raw/last_run.json) shows the latest published run; compare `run_id` with Actions logs for freshness.
 - **Assistant screenshot:** pending a Playground check.
 
 ## Setup and run
@@ -21,17 +21,21 @@ docker build -t rillmark .
 docker run -e API_KEY=sk-... rillmark main.py
 ```
 
-Without `VECTOR_STORE_ID`, the job looks for the store tagged `managed_by=rillmark-optibot-v1` in the key's project: none → create, one → reuse, several → fail. The selection (3 sections, 37 articles, incl. the YouTube article) is in `config/selection.json`.
+Without `VECTOR_STORE_ID`, a `managed_by=rillmark-optibot-v1` store is created or reused by marker (ambiguity fails closed). `config/selection.json` selects 37 articles including YouTube.
 
 ## How it works
 
-- **Markdown:** one file per article: `# Title`, one `Article URL: <link>` line, then the body. Headings, code, tables, links (incl. relative), and images are kept; scripts and nav are removed.
-- **Chunking:** static 4096 tokens, no overlap. The largest file is 2,725 `o200k_base` tokens, so one chunk per file (with its URL line) is expected but not yet confirmed by the provider. The run logs completed files and an estimated chunk count with its basis; `chunks.actual` stays `null`.
-- **Delta sync:** SHA-256 of the Markdown plus schema and chunk settings, stored as a file attribute. Files are classified added / updated / skipped. A replacement is uploaded and confirmed complete before the old attachment is detached; no global file deletes. Articles removed at the source are reported, not deleted.
-- **Report:** each run writes `last_run.json`. Non-dry runs with both `ARTIFACT_GIST_ID` and `ARTIFACT_GITHUB_TOKEN` also publish it to a gist; if publishing fails, the run exits non-zero.
+- **Markdown:** one file per article with title and `Article URL:` header; preserves headings, code, tables, links and images.
+- **Chunking:** 4096 tokens, no overlap. Largest file: 2,725 `o200k_base` tokens. One chunk/file is expected, not provider-confirmed; logs distinguish completed files and estimated chunks, with `chunks.actual=null`.
+- **Delta sync:** hashes Markdown plus schema/chunk settings; classifies added, updated and skipped. Replacement completes before old attachment detaches. Source removals are reported, not deleted.
+- **Report:** each run writes `last_run.json`. Configured non-dry runs publish to the fixed Gist; publication failure exits non-zero.
+
+## Beyond Assignment Requirements — Run History
+
+The assignment requires only logs or a last-run artifact. Beyond that, `last_run.json` shows the latest published run and `history.json` will show the latest **30 distinct runs** in the [same Gist](https://gist.github.com/giahuydo/4968a3eec9704d752fbacb239964ee21). Retention is bounded; GitHub Actions retains individual workflow logs. History is **local-only, not deployed or verified in the Gist**.
 
 ## Daily cloud job
 
-[GitHub Actions](https://github.com/giahuydo/rillmark/actions/workflows/rillmark-daily.yml) builds and runs the Docker image daily at `03:00 UTC` (10:00 Vietnam). After publishing the reviewed workflow on the default branch, configure secrets `OPENAI_API_KEY`, `ARTIFACT_GITHUB_TOKEN` and variable `ARTIFACT_GIST_ID`; `VECTOR_STORE_ID` is optional. Enable `RILLMARK_SCHEDULE_ENABLED=true` only after recurring cost approval. Actions → Run workflow defaults to `dry-run` (no upload or publishing); explicit `sync` requires approval and publishes to the public Gist. Reports are also retained as Actions artifacts, including failures when available. See [operations](docs/04-operations.md#3-scheduling-github-actions).
+[GitHub Actions](https://github.com/giahuydo/rillmark/actions/workflows/rillmark-daily.yml) runs Docker at `03:00 UTC` when enabled. Manual runs default to `dry-run` (no upload/publish); `sync` requires approval. Actions retains logs and available local reports. See [operations](docs/04-operations.md#3-scheduling-github-actions).
 
-Scheduled execution is **PENDING**. The Gist currently contains manual evidence; confirm its `run_id`, timestamps and `git_sha` against a real scheduled run before claiming cloud freshness. Schedules may be delayed or disabled after inactivity. Open: Playground screenshot. Cut: oversize splitting and source-removal deletion.
+Confirm public `run_id` and `git_sha` against an Actions run before claiming scheduled freshness. Open: Playground screenshot. Cut: oversize splitting, source-removal deletion.
