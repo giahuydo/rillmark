@@ -36,9 +36,11 @@ Without `VECTOR_STORE_ID`, a `managed_by=rillmark-optibot-v1` store is created o
 - **Delta sync:** hashes Markdown plus schema/chunk settings; classifies added, updated and skipped. Replacement completes before old attachment detaches. Source removals are reported, not deleted.
 - **Report:** each run writes `last_run.json`. Configured non-dry runs publish to the fixed Gist; publication failure exits non-zero.
 
-## Beyond Assignment Requirements — Run History
+## Beyond Assignment Requirements
 
-The assignment requires only logs or a last-run artifact. Beyond that, `last_run.json` shows the latest published run and `history.json` will show the latest **30 distinct runs** in the [same Gist](https://gist.github.com/giahuydo/4968a3eec9704d752fbacb239964ee21). Retention is bounded; GitHub Actions retains individual workflow logs. History is **local-only, not deployed or verified in the Gist**.
+**Run history:** The assignment requires only logs or a last-run artifact. Beyond that, `last_run.json` shows the latest published run and `history.json` will show the latest **30 distinct runs** in the [same Gist](https://gist.github.com/giahuydo/4968a3eec9704d752fbacb239964ee21). Retention is bounded; GitHub Actions retains individual workflow logs. History is **local-only, not deployed or verified in the Gist**.
+
+**Separate optional demo:** [StrangeLoop agent workflow and six screenshots](docs/engineering-decisions-and-alternatives.md#3-beyond-scope-independently-developed-agent-workflow). This is additional engineering evidence, not a substitute for the required OpenAI workflow.
 
 ## Daily cloud job
 

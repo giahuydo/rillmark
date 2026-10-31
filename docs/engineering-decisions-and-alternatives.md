@@ -22,13 +22,13 @@ Other hosting options—including Railway, Fly.io, AWS, and GCP—were considere
 - [Docker live sync](https://github.com/giahuydo/rillmark/actions/runs/41178971431): **PASS**, 37 skipped, 0 added, 0 updated; commit `d3f57ff`.
 - [Public run report](https://gist.github.com/giahuydo/4968a3eec9704d752fbacb239964ee21): **VERIFIED**, `publish=ok`, matching the live run.
 
-The daily schedule is configured for **03:00 UTC**. As of this snapshot, a *schedule-triggered* run is **not yet verified**; the successful runs above were manually dispatched. The required **OpenAI Playground answer-with-citations screenshot** also remains outstanding.
+The daily schedule is configured for **03:00 UTC**. As of this snapshot, a *schedule-triggered* run is **not yet verified**; the successful runs above were manually dispatched. The [OpenAI Playground screenshot](screenshots/openai/optibot-youtube-playground.png) captures the first-turn YouTube answer and a file citation, but the answer does not include the full `Article URL:` line required by the acceptance checklist.
 
 ## 3. Beyond scope: independently developed agent workflow
 
 I also implemented and exercised **OptiBot on StrangeLoop**, an independently developed agent-workflow system. This is an **optional technical demonstration**, **not a replacement** for the prescribed OpenAI / Gemini submission.
 
-**Platform documentation:** [StrangeLoop — Architecture & Developer Docs](https://agent-platform-docs-sable.vercel.app/). These docs describe the underlying platform; the OptiBot-specific implementation and execution evidence are separate and can be shared on request, subject to access permissions.
+**Platform documentation:** [StrangeLoop — Architecture & Developer Docs](https://agent-platform-docs-sable.vercel.app/). These describe the underlying platform, not the OptiBot run itself. The OptiBot-specific UI and run evidence is linked below; source code and private execution details remain subject to access permissions.
 
 | Capability | Demonstrated result |
 | --- | --- |
@@ -37,7 +37,24 @@ I also implemented and exercised **OptiBot on StrangeLoop**, an independently de
 | **Grounded responses** | A read-only agent used `search`, `cat`, `head`, `grep`, and `ls` to answer the YouTube question and cite the source article. |
 | **Independent engineering** | Workflow and retrieval architecture are under my control; source walkthroughs and execution traces can be shared **on request**, subject to ownership and confidentiality checks. |
 
-**Privacy and independence boundary:** The document store, access rules, and orchestration are self-managed, but the demonstrated version uses a **hosted Gemini model** for inference. It is therefore **not fully offline**, and model-bound context may be processed by a third party. The benefit is control over the agent architecture—not an unsupported claim of zero external dependencies.
+### Demo evidence — StrangeLoop Studio (local)
+
+These screenshots show the independently configured OptiBot in a local StrangeLoop Studio and one grounded agent execution. They are **additional engineering evidence**, not a public deployment or a replacement for the required OpenAI Playground proof. The rubric gives a separate **+5 for tests**, while extra engineering work beyond the requested scope has no specified point value.
+
+| Evidence | What it shows |
+| --- | --- |
+| [Agent overview](screenshots/strangeloop/agent-overview.png) | Active OptiBot version, agent description, tool list and system prompt. |
+| [Agent configuration](screenshots/strangeloop/agent-configuration.png) | Model selection and bounded execution settings. |
+| [Prompt and grounding rules](screenshots/strangeloop/agent-prompt.png) | Verbatim OptiBot prompt plus read-only document-search/citation instructions. |
+| [Flow graph](screenshots/strangeloop/agent-flow.png) | Documentation search-and-answer state with a completed terminal. |
+| [Studio run timeline](screenshots/strangeloop/studio-run-timeline.png) | One completed run, tool-use trace and execution statistics. |
+| [Agent Client answer](screenshots/strangeloop/agent-client-youtube-answer.png) | YouTube setup answer grounded in `ls`/`cat` results, including an explicit OptiSigns `Article URL:`. |
+
+**Sample output (Agent Client):**
+
+![StrangeLoop OptiBot agent answering the YouTube question with an explicit Article URL and document tool traces](screenshots/strangeloop/agent-client-youtube-answer.png)
+
+**Evidence boundary:** Screenshots establish visible local UI state and this specific run; they do not independently demonstrate source ownership, continuous reliability or external deployment. No fixed extra-credit points are claimed. The document store, access rules, and orchestration are self-managed, but the demo uses a **hosted Gemini model** for inference. It is **not fully offline**, and context supplied to the model may be processed by a third party.
 
 ## Official references
 

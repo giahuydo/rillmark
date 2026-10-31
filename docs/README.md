@@ -1,6 +1,6 @@
 # Rillmark — Plan Docs (Part 1: OptiBot Mini-Clone)
 
-- **Status (2026-10-31):** Docker cloud dry-run, live OpenAI delta sync and public Gist publication **VERIFIED**. GitHub Actions daily schedule is enabled; the first schedule-triggered run is **PENDING**. The required Playground cited-answer screenshot remains outstanding.
+- **Status (2026-10-31):** Docker cloud dry-run, live OpenAI delta sync and public Gist publication **VERIFIED**. GitHub Actions daily schedule is enabled; the first schedule-triggered run is **PENDING**. [Playground answer screenshot](screenshots/openai/optibot-youtube-playground.png) captured; explicit first-turn `Article URL:` remains outstanding.
 - **Date:** 2026-10-30
 - **Owner:** project author (decisions).
 - **Source of truth for the assignment:** the original take-home doc, read on 2026-10-30. Internal decision evidence is tracked separately from public deliverables.
@@ -30,7 +30,7 @@
 | 03 | [Sync lifecycle](03-sync-lifecycle.md) | Hash, remote state, delta classification, safe update order, recovery and dedup |
 | 04 | [Operations](04-operations.md) | Config/env, Docker contract, GitHub Actions, logs and public artifact, root README outline |
 | 05 | [Testing](05-testing.md) | Test matrix, acceptance evidence (including the YouTube citation screenshot) |
-| — | **[Engineering decisions & alternatives](engineering-decisions-and-alternatives.md)** | Why OpenAI and GitHub Actions; provider billing, hosting trade-offs, and a separately developed agent-workflow demonstration beyond scope |
+| — | **[Engineering decisions & alternatives](engineering-decisions-and-alternatives.md)** | OpenAI/GitHub Actions rationale, trade-offs and [optional StrangeLoop agent demo + six screenshots](engineering-decisions-and-alternatives.md#3-beyond-scope-independently-developed-agent-workflow) (not a replacement for required deliverables) |
 | — | [Phases](phases.md) | Sequencing, estimates, and the gate at the end of each phase |
 | ADR | [0001 AI provider](adr/0001-ai-provider.md) · [0002 Chunking & citation](adr/0002-chunking-and-citation.md) · [0003 Sync state](adr/0003-sync-state.md) · [0004 Scheduler](adr/0004-scheduler.md) | Decisions with alternatives and consequences |
 
