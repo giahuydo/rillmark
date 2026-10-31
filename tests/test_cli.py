@@ -146,6 +146,8 @@ def test_dry_run_writes_markdown_without_creating_a_gateway(tmp_path: Path) -> N
     assert len(list((tmp_path / "out").glob("*.md"))) == 32
     assert doc["mode"] == "dry-run"
     assert doc["publish"] == "skipped"
+    assert doc["counts"]["selected"] == 32
+    assert doc["chunks"]["estimated"] == 32
     assert doc["store"]["files_in_store"] is None
     assert doc["chunks"]["actual"] is None
 
@@ -157,6 +159,9 @@ def test_sync_adds_all_then_second_run_skips_all(tmp_path: Path) -> None:
     assert first["counts"]["added"] == 32
     assert first["status"] == "success"
     assert first["files"]["actual"] == 32
+    assert first["publish"] == "skipped"
+    assert first["counts"]["selected"] == 32
+    assert first["chunks"]["estimated"] == 32
 
     assert run([], ENV, deps(tmp_path, catalog(), store)) == 0
     second = last_run(tmp_path)
@@ -195,6 +200,33 @@ def test_pilot_uploads_youtube_and_longest_only_and_never_detaches(tmp_path: Pat
     assert code == 0
     assert sorted(store.uploads) == [1010, YOUTUBE_ID]
     assert doc["mode"] == "pilot"
+    assert doc["counts"]["selected"] == 32
+    assert doc["chunks"]["estimated"] == 2
+    assert doc["chunks"]["actual"] is None
+    assert store.detached == []
+
+
+def test_pilot_estimate_remains_subset_when_store_resolution_fails(tmp_path: Path) -> None:
+    store = FakeStore(resolve_error=True)
+    code = run(["--limit", "2"], ENV, deps(tmp_path, catalog(), store))
+    doc = last_run(tmp_path)
+    assert code == 1
+    assert doc["errors"][0]["stage"] == "resolve_store"
+    assert doc["counts"]["selected"] == 32
+    assert doc["chunks"]["estimated"] == 2
+    assert store.uploads == []
+
+
+def test_pilot_classifies_source_absence_against_full_selection(tmp_path: Path) -> None:
+    store = FakeStore()
+    assert run([], ENV, deps(tmp_path, catalog(), store)) == 0
+
+    code = run(["--limit", "2"], ENV, deps(tmp_path, catalog(), store))
+    doc = last_run(tmp_path)
+    assert code == 0
+    assert doc["counts"]["skipped"] == 2
+    assert doc["chunks"]["estimated"] == 2
+    assert doc["deletion_candidates"] == {"count": 0, "article_ids": []}
     assert store.detached == []
 
 
@@ -334,10 +366,64 @@ def test_listing_failure_is_labeled_list_remote(tmp_path: Path) -> None:
     assert last_run(tmp_path)["errors"][0]["stage"] == "list_remote"
 
 
-@pytest.mark.parametrize("env_extra", [{"ARTIFACT_GIST_ID": "g"}, {"ARTIFACT_GITHUB_TOKEN": "t"}])
-def test_partial_gist_config_fails_before_any_store_call(tmp_path: Path, env_extra) -> None:
+@pytest.mark.parametrize("argv", [[], ["--limit", "2"]])
+@pytest.mark.parametrize("required", ["1", "true", "yes", "TRUE", " Yes "])
+def test_required_publish_without_gist_config_fails_before_any_gateway_call(
+    tmp_path: Path, argv: list[str], required: str
+) -> None:
     calls: list[str] = []
-    code = run([], {**ENV, **env_extra}, deps(tmp_path, catalog(), calls=calls))
+    code = run(argv, {**ENV, "REQUIRE_PUBLISH": required}, deps(tmp_path, catalog(), calls=calls))
+    doc = last_run(tmp_path)
+    assert code == 1
+    assert calls == []
+    assert doc["status"] == "failed"
+    assert doc["errors"][0]["stage"] == "config"
+
+
+@pytest.mark.parametrize("argv", [[], ["--limit", "2"]])
+def test_required_publish_with_full_gist_config_publishes(tmp_path: Path, argv: list[str]) -> None:
+    publisher = FakePublisher()
+    env = {
+        **ENV,
+        "REQUIRE_PUBLISH": "true",
+        "ARTIFACT_GIST_ID": "g",
+        "ARTIFACT_GITHUB_TOKEN": "t",
+    }
+    code = run(argv, env, deps(tmp_path, catalog(), FakeStore(), publisher=publisher))
+    assert code == 0
+    assert len(publisher.payloads) == 1
+    assert json.loads(publisher.payloads[0])["publish"] == "ok"
+    assert last_run(tmp_path)["publish"] == "ok"
+
+
+@pytest.mark.parametrize("required", ["", "0", "false", "no"])
+def test_optional_publish_without_gist_config_is_skipped(tmp_path: Path, required: str) -> None:
+    code = run([], {**ENV, "REQUIRE_PUBLISH": required}, deps(tmp_path, catalog(), FakeStore()))
+    assert code == 0
+    assert last_run(tmp_path)["publish"] == "skipped"
+
+
+def test_dry_run_ignores_required_publish_without_gist_config(tmp_path: Path) -> None:
+    calls: list[str] = []
+    code = run(["--dry-run"], {"REQUIRE_PUBLISH": "true"}, deps(tmp_path, catalog(), calls=calls))
+    doc = last_run(tmp_path)
+    assert code == 0
+    assert calls == []
+    assert doc["publish"] == "skipped"
+    assert doc["chunks"]["estimated"] == 32
+
+
+@pytest.mark.parametrize("required", ["", "true"])
+@pytest.mark.parametrize("env_extra", [{"ARTIFACT_GIST_ID": "g"}, {"ARTIFACT_GITHUB_TOKEN": "t"}])
+def test_partial_gist_config_fails_before_any_store_call(
+    tmp_path: Path, env_extra: dict[str, str], required: str
+) -> None:
+    calls: list[str] = []
+    code = run(
+        [],
+        {**ENV, **env_extra, "REQUIRE_PUBLISH": required},
+        deps(tmp_path, catalog(), calls=calls),
+    )
     assert code == 1
     assert calls == []
     assert last_run(tmp_path)["errors"][0]["stage"] == "config"

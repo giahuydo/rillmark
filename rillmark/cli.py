@@ -241,9 +241,13 @@ def _status(progress: _Progress, fatal: bool) -> RunStatus:
     return RunStatus.PARTIAL_FAILURE if progress.errors else RunStatus.SUCCESS
 
 
-def _check_publisher_config(config: Config) -> None:
+def _check_publisher_config(config: Config, *, required: bool) -> None:
     if bool(config.gist_id) != bool(config.gist_token):
         raise ConfigError("ARTIFACT_GIST_ID and ARTIFACT_GITHUB_TOKEN must be set together")
+    if required and not config.gist_id:
+        raise ConfigError(
+            "ARTIFACT_GIST_ID and ARTIFACT_GITHUB_TOKEN are required when REQUIRE_PUBLISH is set"
+        )
 
 
 def run(argv: Sequence[str], env: Mapping[str, str], deps: Deps | None = None) -> int:
@@ -259,7 +263,10 @@ def run(argv: Sequence[str], env: Mapping[str, str], deps: Deps | None = None) -
     try:
         config = load_config(env, deps.selection_path)
         if mode is not RunMode.DRY_RUN:
-            _check_publisher_config(config)
+            _check_publisher_config(
+                config,
+                required=env.get("REQUIRE_PUBLISH", "").strip().lower() in {"1", "true", "yes"},
+            )
             if not config.api_key:
                 raise ConfigError("API_KEY (or OPENAI_API_KEY) is required outside --dry-run")
         progress.stage = Stage.FETCH
@@ -269,19 +276,20 @@ def run(argv: Sequence[str], env: Mapping[str, str], deps: Deps | None = None) -
         selected = select_articles(articles, config.selection)
         progress.selected = len(selected)
         progress.stage = Stage.CONVERT
-        progress.docs = tuple(build_docs(selected, config.chunk.max_tokens))
+        docs = tuple(build_docs(selected, config.chunk.max_tokens))
+        progress.docs = docs
         _write_markdown(progress.docs, deps.out_dir)
         if mode is not RunMode.DRY_RUN:
             allowed = None
             if args.limit is not None:
                 progress.stage = Stage.CONFIG
-                subset = pilot_subset(
-                    progress.docs, args.limit, config.selection.youtube_article_id
+                progress.docs = tuple(
+                    pilot_subset(docs, args.limit, config.selection.youtube_article_id)
                 )
-                allowed = {d.key for d in subset}
+                allowed = {d.key for d in progress.docs}
             progress.stage = Stage.RESOLVE_STORE
             gateway = deps.gateway_factory(config.api_key or "")
-            _sync(gateway, config, progress.docs, allowed, progress)
+            _sync(gateway, config, docs, allowed, progress)
     except (RillmarkError, OSError) as exc:
         fatal = True
         progress.errors.append(ErrorRecord(progress.stage, progress.stage.value))
