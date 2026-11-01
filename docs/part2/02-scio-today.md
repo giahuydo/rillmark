@@ -2,7 +2,13 @@
 
 ← [Overview](README.md) · [3. Scope](03-scope.md) →
 
-We used a Pro Plus trial with an Owner account, two disposable Teams, and a second identity invited into Team B. We switched that identity between **User, Read Only, Admin and a custom role**, so most rows below were checked from both sides. We used generated test images and one browser player. Where a row says *API response*, we read the reply of SCIO's own web app call in the browser; we never sent hand-made requests.
+**How we tested**
+
+- **Setup:** a Pro Plus trial with an Owner account, two disposable Teams, a second identity invited into Team B, generated test images and one browser player.
+- **Both sides:** the Owner changed roles and folder grants; the second identity then repeated the same actions as **User, Read Only, Admin and a custom role**. Most rows below were therefore seen from the admin side and from the member side.
+- **Beyond the UI:** where the UI could mislead, we read the reply to SCIO's own web-app call in the browser (*API response* below). We never sent hand-made requests to the production service.
+- **Cross-checks:** Audit Log entries, Help Center articles (DOCUMENTED), and a reload after each change.
+- **Limits:** one trial account, a web player instead of hardware, and nothing destructive (no Trash or Delete). What we could not observe is listed at the end of this page.
 
 ### Teams and people
 
