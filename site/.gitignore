@@ -1,0 +1,6 @@
+dist/
+.astro/
+node_modules/
+# generated from docs/part2 by scripts/sync-docs.mjs
+src/content/docs/plan/
+*.log

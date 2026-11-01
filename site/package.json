@@ -1,0 +1,20 @@
+{
+  "name": "part2-plan-site",
+  "type": "module",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Static site for the Part 2 slice plan (Astro + Starlight). Content is synced from docs/part2.",
+  "scripts": {
+    "sync": "node scripts/sync-docs.mjs",
+    "dev": "npm run sync && astro dev --port 4600",
+    "build": "npm run sync && astro build",
+    "preview": "astro preview --port 4600"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "0.34.8",
+    "astro": "5.18.2",
+    "astro-mermaid": "2.0.2",
+    "mermaid": "11.15.0",
+    "sharp": "0.33.5"
+  }
+}
