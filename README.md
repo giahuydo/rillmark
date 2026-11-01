@@ -40,7 +40,7 @@ Without `VECTOR_STORE_ID`, a `managed_by=rillmark-optibot-v1` store is created o
 
 ## Beyond Assignment Requirements
 
-**Run history:** The assignment requires only logs or a last-run artifact. Beyond that, `last_run.json` shows the latest published run and `history.json` will show the latest **30 distinct runs** in the [same Gist](https://gist.github.com/giahuydo/4968a3eec9704d752fbacb239964ee21). Retention is bounded; GitHub Actions retains individual workflow logs. History is **local-only, not deployed or verified in the Gist**.
+**Run history:** beyond the required last-run artifact, the [same Gist](https://gist.github.com/giahuydo/4968a3eec9704d752fbacb239964ee21) keeps `history.json` with the latest **30 distinct runs** (three cloud sync runs so far, each `added=0 updated=0 skipped=37`; [delta evidence](docs/05-testing.md#31-delta-sync-evidence)). GitHub Actions keeps the full logs.
 
 **Separate optional demo:** [StrangeLoop agent workflow and six screenshots](docs/engineering-decisions-and-alternatives.md#3-beyond-scope-independently-developed-agent-workflow). This is additional engineering evidence, not a substitute for the required OpenAI workflow.
 
@@ -56,13 +56,4 @@ For architecture, design decisions, testing, and detailed operations, see the [E
 
 ## Part 2: SCIO slice plan (Brief B)
 
-**Chosen brief: B** (Team, Roles, Permissions, uploaded Assets and Screens). The plan says what to build, in what order, how long it takes, and why. Start at [`docs/part2/README.md`](docs/part2/README.md). It reads on GitHub as Markdown with Mermaid diagrams. The same files also render as a Starlight site:
-
-```bash
-cd site
-npm install
-npm run dev      # http://localhost:4600
-npm run build    # static site in site/dist/
-```
-
-Requires Node 22 (22.19+ avoids an npm engine warning). The site copies `docs/part2` at build time, so edit the Markdown there.
+**Chosen brief: B** (Team, Roles, Permissions, uploaded Assets and Screens): what to build, in what order, how long, and why. Start at [`docs/part2/README.md`](docs/part2/README.md) (Markdown + Mermaid on GitHub). To view it as a Starlight site (Node 22): `cd site && npm install && npm run dev`, then open http://localhost:4600.
