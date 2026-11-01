@@ -67,7 +67,7 @@
 
 **What we copy from SCIO's UX:** the Create And Share warning, the Move License offer, shared folders surfacing inside the Edit Screen picker, immediate `Asset: <name>` feedback in the Screens list, and the small role grid.
 
-**Where we deliberately differ:** pickers (including Push) show only Screens the user may change, instead of failing after Submit; denied actions and member role changes are written to the audit log; inside a playlist, an item the viewer cannot see is shown as a placeholder ("Non-accessible item"), with no name, thumbnail, metadata or file actions.
+**Where we deliberately differ:** pickers (including Push) show only Screens the user may change, instead of failing after Submit; denied actions and member role changes are written to the audit log; inside a playlist, an item the viewer cannot see is shown as a placeholder ("Non-accessible item"), with no name, thumbnail, metadata or file actions; deleting an Asset that a Screen or Playlist still uses is refused (`409 ASSET_IN_USE`, [§6](06-lifecycles.md)), whereas SCIO's in-app assistant says SCIO allows it and playback stops (not tested in the trial).
 
 **Where SCIO differs from its Help Center** (each point checked against the article, the product, and SCIO's in-app assistant):
 
