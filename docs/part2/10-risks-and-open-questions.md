@@ -18,11 +18,10 @@
 
 1. Replace or Delete of an Asset that a Screen or Playlist uses. Default: Replace keeps the ID; Delete is refused with `409 ASSET_IN_USE`.
 2. Whether a Super Admin's view spans Teams. Default: account-wide, like the Owner.
-3. Storage quota and upload size per plan, and whether quota is per Team or per account. Default: per Team, values from the plan table.
-4. Exact reach of the "Everyone in the account" subject. Observed: such a folder appears in a Team B member's picker. Default: every member of any Team in the account. "Admin Only" is observed to cover the owning Team's admins only; a Team grant still covers all of that Team.
-5. Whether SCIO's Download and Trash buttons work on a hidden playlist item, and what a physical player shows after a share is revoked. Neither changes our design (placeholder; D3b).
+3. Exact reach of the "Everyone in the account" subject. Observed: such a folder appears in a Team B member's picker. Default: every member of any Team in the account. "Admin Only" is observed to cover the owning Team's admins only; a Team grant still covers all of that Team.
+4. Whether SCIO's Download and Trash buttons work on a hidden playlist item, and what a physical player shows after a share is revoked. Neither changes our design (placeholder; D3b).
 
-**Answered in the trial** (details in [§2](02-scio-today.md)): S1 is enforced on the server; revoking a share keeps the assignment; Move To Team lands in Home and clears the assignment; OnHold frees the slot and keeps the assignment; Read Only shows Download.
+**Answered in the trial** (details in [§2](02-scio-today.md)): S1 is enforced on the server; revoking a share keeps the assignment; Move To Team lands in Home and clears the assignment; OnHold frees the slot and keeps the assignment; Read Only shows Download. Storage limits are documented: 10 GB of cloud storage per paid screen, pooled per account, 1 GB per file and 2 GB per playlist; the plan uses that account pool, with optional per-Team caps.
 
 ---
 

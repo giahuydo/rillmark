@@ -63,11 +63,19 @@
 |---|---|---|
 | Audit Log | Folder, permission, role-creation, upload, Screen-edit and login events with Team and actor; Push and Edit both appear as "Edited". **Not shown:** denied actions (two refused Pushes) and a member's role change | VERIFIED UI |
 
-**Still UNKNOWN in SCIO** (the plan picks a rule in [§5](05-data-model-and-authorization.md); full list in [§11](10-risks-and-open-questions.md#11-open-questions-dont-block-the-start)): Replace or Delete of an Asset that is assigned; whether a Super Admin's view spans Teams; storage and upload-size limits per plan (not shown anywhere we looked in the UI).
+**Still UNKNOWN in SCIO** (the plan picks a rule in [§5](05-data-model-and-authorization.md); full list in [§11](10-risks-and-open-questions.md#11-open-questions-dont-block-the-start)): Replace or Delete of an Asset that is assigned; whether a Super Admin's view spans Teams. Storage limits are not shown in the UI but are documented: 10 GB per paid screen, 1 GB per file.
 
 **What we copy from SCIO's UX:** the Create And Share warning, the Move License offer, shared folders surfacing inside the Edit Screen picker, immediate `Asset: <name>` feedback in the Screens list, and the small role grid.
 
 **Where we deliberately differ:** pickers (including Push) show only Screens the user may change, instead of failing after Submit; denied actions and member role changes are written to the audit log; inside a playlist, an item the viewer cannot see is shown as a placeholder ("Non-accessible item"), with no name, thumbnail, metadata or file actions.
+
+**Where SCIO differs from its Help Center** (each point checked against the article, the product, and SCIO's in-app assistant):
+
+1. Moving a Screen into a full Team offers **Move License**; the Help Center describes a "maximum number of screens" error.
+2. The Help Center describes Edit without View (upload without seeing the contents); the current dialog offers a single **Edit or View** level.
+3. A playlist item the viewer can't access is documented as hidden with a warning; it was shown with **name and thumbnail and no warning**, and its detail opened, while a Files search for it returned nothing.
+4. The Help Center says user changes are logged; **three role changes did not appear** in the Audit Log.
+
 
 ---
 
