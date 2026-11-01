@@ -1,6 +1,8 @@
 # Rillmark
 
-Scrapes Zendesk articles to Markdown and delta-syncs an OpenAI Vector Store for a Playground support assistant.
+**Part 1:** scrapes Zendesk articles to Markdown and delta-syncs an OpenAI Vector Store for a Playground support assistant.
+
+**Part 2:** [SCIO slice plan, Brief B](#part-2-scio-slice-plan-brief-b) (Team, Roles, Permissions, Assets and Screens).
 
 - **Run artifact:** [public `last_run.json`](https://gist.githubusercontent.com/giahuydo/4968a3eec9704d752fbacb239964ee21/raw/last_run.json) shows the latest published run; compare `run_id` with Actions logs for freshness.
 - **Assistant evidence:** Playground screenshot below shows the required YouTube answer and uploaded-file citation; the first reply does not print the full `Article URL:` line.
@@ -53,3 +55,16 @@ Confirm public `run_id` and `git_sha` against an Actions run before claiming sch
 ![OptiBot answering the YouTube question using File Search, with a citation to the uploaded Markdown article](docs/screenshots/openai/optibot-youtube-playground.png)
 
 For architecture, design decisions, testing, and detailed operations, see the [Engineering documentation](docs/README.md).
+
+## Part 2: SCIO slice plan (Brief B)
+
+**Chosen brief: B** (Team, Roles, Permissions, uploaded Assets and Screens). The plan says what to build, in what order, how long it takes, and why. Start at [`docs/part2/README.md`](docs/part2/README.md). It reads on GitHub as Markdown with Mermaid diagrams. The same files also render as a Starlight site:
+
+```bash
+cd site
+npm install
+npm run dev      # http://localhost:4600
+npm run build    # static site in site/dist/
+```
+
+Requires Node 22 (22.19+ avoids an npm engine warning). The site copies `docs/part2` at build time, so edit the Markdown there.
