@@ -57,14 +57,14 @@ flowchart LR
   API["API: complete upload"] -- "2 size + magic bytes + SHA-256" --> ST
   API -- "3 copy if absent" --> BL["blobs/{blob_id}<br/>immutable"]
   W["Worker"] -- "4 read exact generation" --> BL
-  W -- "5 thumbnail · poster · PDF copy" --> DV["derived/{blob_id}/…"]
+  W -- "5 thumbnail · poster frame" --> DV["derived/{blob_id}/…"]
   SPA["SPA / player"] -. "6 signed GET, 5 min,<br/>after authorize()" .-> BL
   SPA -. "signed GET" .-> DV
 ```
 
 *Steps 1–6 of one upload. Everything under `staging/` that is older than 24 h is removed by a bucket lifecycle rule, so abandoned uploads cost nothing.*
 
-**Key layout:** `a/{account_id}/staging/{upload_id}`, `a/{account_id}/blobs/{blob_id}`, `a/{account_id}/derived/{blob_id}/thumb-320.webp | poster.jpg | preview.pdf`. Grouping by account keeps one prefix per tenant for export, deletion on account closure and cost reports.
+**Key layout:** `a/{account_id}/staging/{upload_id}`, `a/{account_id}/blobs/{blob_id}`, `a/{account_id}/derived/{blob_id}/thumb-320.webp | poster.jpg`. Grouping by account keeps one prefix per tenant for export, deletion on account closure and cost reports.
 
 **Promotion is idempotent:** the copy into `blobs/` succeeds only if the target does not exist yet (`ifGenerationMatch: 0` on GCS, `If-None-Match: *` on S3). A retried complete that finds the object already there re-hashes it and accepts it only on the same SHA-256. A blob is `ready` only after that check, so the UI and the player never get a URL for bytes still in staging.
 
@@ -73,7 +73,7 @@ flowchart LR
 | Action | Postgres | Storage |
 |---|---|---|
 | Upload | `upload` row, quota reserved under a lock; then `blob` + `asset` + `asset_version 1` | Staging → `blobs/`; worker writes `derived/` |
-| Preview | `authorize(view)` | Signed GET of a derived file: thumbnail for images, poster frame for video, `preview.pdf` for Office documents. Previews render in the browser; files are never sent to a third-party viewer |
+| Preview | `authorize(view)` | Signed GET of a derived file: thumbnail for images and the first page of a PDF, poster frame for video; the PDF itself opens in the browser viewer. Files are never sent to a third-party viewer |
 | Download | `authorize(view)` | Signed GET of the original, 5 min, `Content-Disposition: attachment; filename="<asset name>"` |
 | Duplicate | New `asset` + `asset_version` pointing at the **same** `blob` | None |
 | Replace | New `blob`; in one transaction `asset.current_blob` and `version` change, the Asset ID stays | New object; the old blob stays for 30 days (version history, rollback) |
@@ -84,7 +84,7 @@ flowchart LR
 
 **Player caching:** manifest URLs include the `blob_id`, so the player caches by blob and re-downloads only after a Replace. A signed URL already handed out stays valid until its 5-minute TTL ends, and a file the player has cached stays on the device. Revoking access stops new URLs; it does not erase copies already delivered ([§10](10-risks-and-open-questions.md#10-risks)).
 
-**Deliberately cut:** virus scanning (the staging → promote step is where a scanner would plug in, between steps 2 and 3), video transcoding (originals play as uploaded, within the codec allowlist) and CDN delivery. None of them changes the data model.
+**Deliberately cut:** virus scanning (the staging → promote step is where a scanner would plug in, between steps 2 and 3), Office conversion (a non-goal in [§3](03-scope.md); a PDF copy would be one more file under `derived/`), video transcoding (originals play as uploaded, within the codec allowlist) and CDN delivery. None of them changes the data model.
 
 **Provider choice:** GCS, because it gives V4 signed URLs, resumable uploads, generation preconditions and lifecycle rules out of the box, and keeps the stack on one cloud. S3 offers the same four (multipart instead of resumable), so the port stays thin enough to switch.
 
