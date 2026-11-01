@@ -19,7 +19,7 @@ const DESCRIPTIONS = {
   summary: 'What we would build, in what order, how long it takes, and why.',
   'scio-today': 'What we observed in a real SCIO trial, with evidence labels, and what is still unknown.',
   scope: 'In scope, the decisions the brief leaves open, and non-goals.',
-  architecture: 'Modular monolith, storage and queue, with rejected alternatives.',
+  architecture: 'Modular monolith, file storage (blobs, previews, quota) and queue, with rejected alternatives.',
   'data-model-and-authorization': 'Entities, the authorize() decision, folder permission bits and decisions D2–D5.',
   lifecycles: 'Upload, pairing, Move To Team, and assignment through Edit Screen and Push.',
   'security-and-tests': 'Threats covered and representative negative tests.',

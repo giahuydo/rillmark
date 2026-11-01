@@ -56,4 +56,4 @@ For architecture, design decisions, testing, and detailed operations, see the [E
 
 ## Part 2: SCIO slice plan (Brief B)
 
-**Chosen brief: B** (Team, Roles, Permissions, uploaded Assets and Screens): what to build, in what order, how long, and why. Start at [`docs/part2/README.md`](docs/part2/README.md) (Markdown + Mermaid on GitHub). To view it as a Starlight site (Node 22): `cd site && npm install && npm run dev`, then open http://localhost:4600.
+**Chosen brief: B** (Team, Roles, Permissions, uploaded Assets and Screens): what to build, in what order, how long, and why. Read it on the [hosted site](https://rillmark-plan.vercel.app/) or on GitHub at [`docs/part2/README.md`](docs/part2/README.md); the site rebuilds from `docs/part2` on every push. Run it locally (Node 22): `cd site && npm install && npm run dev`, then open http://localhost:4600.
