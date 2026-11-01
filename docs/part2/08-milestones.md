@@ -8,7 +8,7 @@
 | M1 | Teams & members | Teams + quota invariant, Add/Invite flows, remove vs delete, session revocation, Team switcher, Members UI | 7 | M0 |
 | M2 | Roles & policy engine | Capability catalog, seeded + custom roles with escalation guard, `authorize()`, generated matrix tests | 6 | M0, M1 |
 | M3 | Folders & sharing | Typed trees, grants, snapshot inheritance, Change Permission UI, Shared with me, ACL-joined list helper, locking | 7 | M2 |
-| M4 | Uploaded Assets | Presigned upload + reservation, worker (thumbnails, metadata), search/preview/download, duplicate/replace, Trash + reference guard, Create And Share warning | 9.5 | M3 |
+| M4 | Uploaded Assets | Presigned upload + reservation, staging → immutable blob promotion, worker (thumbnails, poster frames, PDF copies, metadata), search/preview/download, duplicate/replace, Trash + reference guard, blob GC, Create And Share warning | 9.5 | M3 |
 | M5 | Screens | Pairing + device token, browser player, Screen folders/settings, capacity, OnHold, Move To Team | 9 | M3, M1 |
 | M6 | Assignment | `AssignContent`, Edit Screen + Push (multi-select), locking tests, revoke flags, device manifest | 5.5 | M4, M5 |
 | M7 | Minimal Playlist | Ordered items + durations, partial-visibility placeholder, assignable, player loop | 4 | M6 |

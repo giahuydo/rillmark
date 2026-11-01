@@ -10,6 +10,8 @@
 | Business wants revoke to stop playback | Low / low (SCIO keeps the assignment) | Manifest builder already checks `canUseContent` | Strict variant (1 day) |
 | Admin visibility is global, not per Team | Low / medium (Team Admin UI is Team-scoped) | Bypass scope is one condition | 1 day + matrix rows |
 | Media edge cases (codecs, huge PDFs) | High / medium | Allowlist, timeouts, `failed` state | Page/size caps |
+| A revoked user or Screen keeps content already delivered | Medium / low | 5-min signed URLs; new URLs only after `authorize()` | Shorter TTL, or a proxied read for sensitive folders (1 day) |
+| A GC bug deletes bytes still in use | Low / high | GC deletes only blobs with zero references after the 30-day retention; dry-run report first; bucket soft delete | Restore from soft delete |
 | Policy engine slips and blocks M3–M6 | Low / high | Built first, matrix from day 1 | Pull M7 out of core |
 | AI-assisted velocity lower than forecast | Medium / low | Baseline is the commitment | Re-forecast at week 2 |
 | Users expect SCIO's looser playlist display (hidden items shown in full) | Low / low | We show a placeholder; product decision recorded | Show name only (0.5 day) |

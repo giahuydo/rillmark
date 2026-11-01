@@ -20,7 +20,7 @@
 |---|---|
 | [2. How SCIO works today (from using it)](02-scio-today.md) | What we observed in a real SCIO trial, with evidence labels, and what is still unknown |
 | [3. Scope](03-scope.md) | In scope, decisions the brief leaves open (team, platforms, depth), non-goals |
-| [4. Architecture](04-architecture.md) | Modular monolith, storage, queue; rejected alternatives |
+| [4. Architecture](04-architecture.md) | Modular monolith, file storage (blobs, previews, quota), queue; rejected alternatives |
 | [5. Data model and authorization](05-data-model-and-authorization.md) | Entities, `authorize()`, folder permission bits, decisions D2–D5 |
 | [6. Key lifecycles](06-lifecycles.md) | Upload, pairing, Move To Team, assignment (Edit Screen and Push) |
 | [7. Security and tests](07-security-and-tests.md) | Threats and representative negative tests |

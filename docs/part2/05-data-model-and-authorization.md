@@ -2,7 +2,7 @@
 
 ← [4. Architecture](04-architecture.md) · [Overview](README.md) · [6. Key lifecycles](06-lifecycles.md) →
 
-**Core entities (abbreviated):** `account`, `team(screen_limit)`, `user`, `session`, `role(capabilities[])`, `membership(team, user, role)`, `invitation`, `folder(team, family, parent, acl_version)`, `folder_grant(subject team|user|account|admins, can_view, can_edit, locked)`, `asset(folder, status, current_blob, version)`, `blob`, `upload`, `screen(team, folder, state, device)`, `device`, `pairing_code`, `assignment(screen, content_type, content_id, flags)`, `playlist`, `schedule`, `audit_event`. Content belongs to a **Team**, never a user, so deleting a user orphans nothing.
+**Core entities (abbreviated):** `account`, `team(screen_limit)`, `user`, `session`, `role(capabilities[])`, `membership(team, user, role)`, `invitation`, `folder(team, family, parent, acl_version)`, `folder_grant(subject team|user|account|admins, can_view, can_edit, locked)`, `asset(folder, status, current_blob, version)`, `asset_version(asset, blob, version)`, `blob(account, object_key, generation, sha256, size, mime, status)`, `upload(account, declared_size, staging_key, expires_at)`, `screen(team, folder, state, device)`, `device`, `pairing_code`, `assignment(screen, content_type, content_id, flags)`, `playlist`, `schedule`, `audit_event`. Content belongs to a **Team**, never a user, so deleting a user orphans nothing. Bytes belong to the **account**: a `blob` is immutable and may back several Assets (Duplicate), so moving content between folders or Teams never touches storage ([§4.1](04-architecture.md#41-file-storage)).
 
 ```mermaid
 erDiagram
