@@ -185,11 +185,110 @@ def test_changed_article_is_replaced_and_old_attachment_detached(tmp_path: Path)
 def test_source_absent_article_is_reported_not_deleted(tmp_path: Path) -> None:
     store = FakeStore()
     run([], ENV, deps(tmp_path, catalog(), store))
+    kept = {f.file_id for f in store.files.values() if f.attributes["article_id"] == "1005"}
     shrunk = [a for a in catalog() if a["id"] != 1005]
-    run([], ENV, deps(tmp_path, shrunk, store))
+    assert run([], ENV, deps(tmp_path, shrunk, store)) == 0
     doc = last_run(tmp_path)
-    assert doc["deletion_candidates"]["article_ids"] == [1005]
+    assert doc["deletion_candidates"] == {"count": 1, "article_ids": [1005]}
+    counts = doc["counts"]
+    assert (counts["added"], counts["updated"], counts["skipped"], counts["deleted"]) == (
+        0,
+        0,
+        31,
+        0,
+    )
     assert store.detached == []
+    assert kept and kept <= set(store.files)
+
+
+def test_new_article_is_the_only_upload(tmp_path: Path) -> None:
+    store = FakeStore()
+    run([], ENV, deps(tmp_path, [a for a in catalog() if a["id"] != 1005], store))
+    store.uploads.clear()
+
+    assert run([], ENV, deps(tmp_path, catalog(), store)) == 0
+    counts = last_run(tmp_path)["counts"]
+    assert (counts["added"], counts["updated"], counts["skipped"], counts["deleted"]) == (
+        1,
+        0,
+        31,
+        0,
+    )
+    assert store.uploads == [1005]
+    assert store.detached == []
+    assert len(store.files) == 32
+
+
+def test_unchanged_rerun_uploads_nothing(tmp_path: Path) -> None:
+    store = FakeStore()
+    run([], ENV, deps(tmp_path, catalog(), store))
+    before = set(store.files)
+    store.uploads.clear()
+
+    assert run([], ENV, deps(tmp_path, catalog(), store)) == 0
+    counts = last_run(tmp_path)["counts"]
+    assert (counts["added"], counts["updated"], counts["skipped"]) == (0, 0, 32)
+    assert store.uploads == []
+    assert store.detached == []
+    assert set(store.files) == before
+
+
+class OrderStore(FakeStore):
+    """Record upload, completion and detach events in call order."""
+
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self.events: list[tuple[str, str]] = []
+
+    def upload(self, store_id, doc: ArticleDoc, attributes, chunk: ChunkConfig) -> RemoteFile:
+        file = super().upload(store_id, doc, attributes, chunk)
+        self.events.append(("upload", file.file_id))
+        return file
+
+    def wait_completed(self, store_id: str, file_id: str, timeout_s: float) -> RemoteFile:
+        self.events.append(("completed", file_id))
+        return super().wait_completed(store_id, file_id, timeout_s)
+
+    def detach(self, store_id: str, file_id: str) -> None:
+        self.events.append(("detach", file_id))
+        super().detach(store_id, file_id)
+
+
+def test_update_detaches_old_only_after_replacement_completes(tmp_path: Path) -> None:
+    store = OrderStore()
+    run([], ENV, deps(tmp_path, catalog(), store))
+    (old,) = [f.file_id for f in store.files.values() if f.attributes["article_id"] == "1005"]
+    store.events.clear()
+
+    assert run([], ENV, deps(tmp_path, catalog({1005: "<p>New steps.</p>"}), store)) == 0
+    (new,) = [f.file_id for f in store.files.values() if f.attributes["article_id"] == "1005"]
+    assert store.events == [("upload", new), ("completed", new), ("detach", old)]
+    counts = last_run(tmp_path)["counts"]
+    assert (counts["added"], counts["updated"], counts["skipped"], counts["deleted"]) == (
+        0,
+        1,
+        31,
+        1,
+    )
+
+
+def test_failed_update_upload_keeps_the_old_version(tmp_path: Path) -> None:
+    store = FakeStore()
+    run([], ENV, deps(tmp_path, catalog(), store))
+    old = {fid: f for fid, f in store.files.items() if f.attributes["article_id"] == "1005"}
+    store.fail_upload = {1005}
+
+    code = run([], ENV, deps(tmp_path, catalog({1005: "<p>New steps.</p>"}), store))
+    doc = last_run(tmp_path)
+    assert code == 1
+    assert doc["status"] == "partial_failure"
+    assert (doc["counts"]["updated"], doc["counts"]["failed"], doc["counts"]["deleted"]) == (
+        0,
+        1,
+        0,
+    )
+    assert store.detached == []
+    assert {fid: store.files[fid] for fid in old} == old
 
 
 def test_pilot_uploads_youtube_and_longest_only_and_never_detaches(tmp_path: Path) -> None:
