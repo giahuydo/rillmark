@@ -1,8 +1,13 @@
 name: Rillmark daily
+run-name: >-
+  Rillmark daily (${{ github.event_name == 'schedule' && 'github-schedule' || inputs.trigger || 'manual' }})
 
 on:
+  # Primary daily trigger: cron-job.org dispatches this workflow at 03:23 UTC
+  # (see docs/adr/0004-scheduler.md). GitHub's own schedule is a backup,
+  # offset from the hour because top-of-hour schedules are often delayed.
   schedule:
-    - cron: "0 3 * * *"
+    - cron: "47 3 * * *"
   workflow_dispatch:
     inputs:
       mode:
@@ -12,6 +17,10 @@ on:
           - dry-run
           - sync
         default: dry-run
+      trigger:
+        description: "Who started the run; the external scheduler sends cron-job.org"
+        type: string
+        default: manual
 
 permissions:
   contents: read
