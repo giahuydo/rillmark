@@ -22,7 +22,7 @@ Other hosting options—including Railway, Fly.io, AWS, and GCP—were considere
 - [Docker live sync](https://github.com/giahuydo/rillmark/actions/runs/41178971431): **PASS**, 37 skipped, 0 added, 0 updated; commit `d3f57ff`.
 - [Public run report](https://gist.github.com/giahuydo/4968a3eec9704d752fbacb239964ee21): **VERIFIED**, `publish=ok`, matching the live run.
 
-The daily schedule is configured for **03:00 UTC**. As of this snapshot, a *schedule-triggered* run is **not yet verified**; the successful runs above were manually dispatched. The [OpenAI Playground screenshot](screenshots/openai/optibot-youtube-playground.png) captures the first-turn YouTube answer and a file citation, but the answer does not include the full `Article URL:` line required by the acceptance checklist.
+The daily trigger is **cron-job.org dispatching the workflow at 03:23 UTC**, with GitHub's own cron as a backup, because GitHub's schedule arrived 7 hours late in our test ([ADR-0004](adr/0004-scheduler.md), [evidence](04-operations.md#scheduler-evidence-1-nov-2026)). The runs above were dispatched by hand before that switch. The [OpenAI Playground screenshot](screenshots/openai/optibot-youtube-playground.png) captures the first-turn YouTube answer and a file citation, but the answer does not include the full `Article URL:` line required by the acceptance checklist.
 
 ## 3. Beyond scope: independently developed agent workflow
 

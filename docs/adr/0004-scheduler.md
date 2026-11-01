@@ -1,11 +1,26 @@
-# ADR-0004 — Scheduler: GitHub Actions + public Gist
+# ADR-0004 — Scheduler: cron-job.org dispatch + GitHub Actions + public Gist
 
-Status: Accepted. Supersedes the earlier Render Cron decision.
+Status: Accepted (amended 1 Nov 2026). Supersedes the earlier Render Cron decision and the original "GitHub schedule only" trigger.
 
-The daily job uses `.github/workflows/rillmark-daily.yml` on GitHub-hosted Ubuntu: build the existing Dockerfile, run its non-root application once, preserve its exit code, and copy the report even after failure. No registry or Render service is required.
+**Where the job runs:** `.github/workflows/rillmark-daily.yml` on a GitHub-hosted Ubuntu runner. It builds the existing Dockerfile, runs the non-root application once, preserves its exit code, and copies the report even after failure. No registry or Render service is required.
 
-Schedule: `0 3 * * *` UTC (10:00 Vietnam), gated by repository variable `RILLMARK_SCHEDULE_ENABLED=true` after credentials and recurring cost approval. Manual dispatch defaults to `dry-run`; explicit `sync` requires OpenAI and Gist configuration and `REQUIRE_PUBLISH=true`.
+**What triggers it every day:**
 
-The fixed public Gist remains the anonymous evidence mechanism. Match its timestamp-based `run_id`, `finished_at` and `git_sha` with the corresponding Actions log and uploaded artifact. Existing manual evidence does not verify scheduled execution. A publisher failure must fail the job; the previous public JSON can remain stale.
+| Trigger | When | Role |
+|---|---|---|
+| cron-job.org calls the `workflow_dispatch` API with `{"ref":"main","inputs":{"mode":"sync","trigger":"cron-job.org"}}` | 03:23 UTC daily | **Primary** |
+| GitHub `schedule`, `47 3 * * *`, gated by `RILLMARK_SCHEDULE_ENABLED=true` | 03:47 UTC daily | Backup; a second run that day finds no changes and skips every file |
+| Manual dispatch (default `dry-run`) | On demand | Operator checks |
 
-Actions schedules can be delayed/dropped or disabled after public-repository inactivity. Artifact collection is best effort on cancellation or runner loss. See [operations](../04-operations.md#3-scheduling-github-actions) for setup and verification. A real scheduled run remains PENDING; no paid call or schedule activation is authorized by this configuration change.
+The run name shows the trigger: `Rillmark daily (cron-job.org)`, `(github-schedule)` or `(manual)`.
+
+**Why an external scheduler:**
+- **GitHub's schedule is late or missing.** GitHub documents that `schedule` "can be delayed during periods of high loads… High load times include the start of every hour… some queued jobs may be dropped". On 1 Nov 2026 the 03:00 UTC daily slot was delivered **7 h 18 min late** (10:17 UTC). A fresh private probe repo with `*/5 * * * *` produced **no** `schedule` run in 45 minutes. The same probe dispatched by cron-job.org every five minutes ran on time each time (see [scheduler evidence](../04-operations.md#scheduler-evidence-1-nov-2026)).
+- **Free and reliable.** cron-job.org is free, sends any HTTP method with custom headers and a JSON body, and keeps an execution history with response codes.
+- **Alternatives cost money or add a service.** Render Cron Jobs have a minimum charge of $1 per cron job service per month; DigitalOcean, Railway and Fly.io generally need a paid or trial-credit plan to keep a recurring job running. Any of them would also need a second deployment of the image, while the dispatch approach reuses the GitHub runner.
+
+**Credentials:** cron-job.org holds one fine-grained GitHub token with **Actions: read and write** on this repository only (90-day expiry). It cannot read secrets or code. OpenAI and Gist credentials stay in GitHub secrets.
+
+**Evidence:** the fixed public Gist remains the anonymous evidence. Match its `run_id`, `finished_at` and `git_sha` with the Actions run (named by trigger) and the uploaded artifact. A publisher failure fails the job; the previous public JSON can remain stale.
+
+**Known limits:** a dispatch run reports `event=workflow_dispatch` and the token owner as actor, so the trigger is identified by the run name and the cron-job.org history, not by the event type. Token expiry must be renewed. Public-repository schedules are disabled after 60 days without activity; the external trigger is not.

@@ -26,51 +26,50 @@ For the author's Playground, scope the key to the same project so the store appe
 - **Primary acceptance command:** `docker run -e API_KEY=... <image> main.py`. The image includes the non-secret `config/selection.json`; default sync validates ≥30 selected articles and YouTube inclusion before upload, then resolves or creates its project-local marked store. This command is a planned contract, **UNVERIFIED until G0 + P4** (fresh authorized project/key, real image and exit 0). Insufficient credits/permissions or unsafe ambiguity must fail honestly, not fake success. `docker run --env-file .env <image> main.py` is the configured alternative; `.env` may provide `API_KEY` and optional overrides/`VECTOR_STORE_ID` without committing secrets. Do not embed any key or project-specific ID in the image. `--limit N` is a deterministic pilot upload cap after full ≥30 validation; it includes the YouTube article and longest file, labels counts `pilot`, and never detaches/deletes.
 - A successful configured sync runs once and exits 0; configuration, sync, or required-publication failure exits non-zero (see §4). No volume needed for ephemeral `out/*.md`; local `last_run.json` inside the container is not durable by itself.
 
-## 3. Scheduling (GitHub Actions)
+## 3. Scheduling (cron-job.org → GitHub Actions)
 
-GitHub Actions is the primary daily cloud scheduler; Render is not required. The workflow `.github/workflows/rillmark-daily.yml` builds the existing Dockerfile on a GitHub-hosted Ubuntu runner and runs the non-root image once. No registry is needed. See [ADR-0004](adr/0004-scheduler.md).
+The job runs in `.github/workflows/rillmark-daily.yml` on a GitHub-hosted Ubuntu runner: it builds the existing Dockerfile and runs the non-root image once. No registry is needed. **cron-job.org triggers it every day**; GitHub's own `schedule` is a backup. Rationale in [ADR-0004](adr/0004-scheduler.md).
 
-1. After review, publish the workflow on the repository default branch.
-2. Configure repository secrets `OPENAI_API_KEY` (mapped to container `API_KEY`) and `ARTIFACT_GITHUB_TOKEN` (gist-scope credential). Set repository variable `ARTIFACT_GIST_ID` to the fixed public Gist ID. Optional `VECTOR_STORE_ID` must identify a correctly marked store; without it, the existing marker-resolution rules apply.
-3. From Actions → Rillmark daily → Run workflow, leave mode `dry-run` for Zendesk fetch/conversion only: no OpenAI credentials or publisher credentials enter that container. Select `sync` only after explicit cost approval. Live runs require all three API/Gist settings and `REQUIRE_PUBLISH=true`; missing settings fail by name without logging values.
-4. Only after credentials and recurring cost are approved, set repository variable `RILLMARK_SCHEDULE_ENABLED=true`. The cron is `0 3 * * *` UTC (10:00 Vietnam). Leave the variable absent/false until then.
+**Setup**
 
-The job passes `GIT_SHA` into the container for report correlation. The application retains its timestamp-based `run_id`, timestamps, status, added/updated/skipped counts and publication status. Compare the cloud log summary and uploaded JSON with the anonymous Gist JSON; match `run_id`, `finished_at`, and `git_sha`. A previous manual result is not scheduled evidence.
+1. Publish the workflow on the default branch.
+2. Repository secrets: `OPENAI_API_KEY` (mapped to container `API_KEY`) and `ARTIFACT_GITHUB_TOKEN` (gist scope). Repository variable `ARTIFACT_GIST_ID`; optional `VECTOR_STORE_ID` must identify a correctly marked store.
+3. Manual check: Actions → Rillmark daily → Run workflow. `dry-run` (default) fetches and converts only, with no OpenAI or Gist credentials in the container. `sync` needs the three API/Gist settings and `REQUIRE_PUBLISH=true`; a missing setting fails by name without logging values.
+4. Primary trigger: a cron-job.org job, daily at **03:23 UTC**:
+   - `POST https://api.github.com/repos/giahuydo/rillmark/actions/workflows/rillmark-daily.yml/dispatches`
+   - Headers: `Accept: application/vnd.github+json`, `Authorization: Bearer <fine-grained token>`, `X-GitHub-Api-Version: 2022-11-28`, `Content-Type: application/json`
+   - Body: `{"ref":"main","inputs":{"mode":"sync","trigger":"cron-job.org"}}`
+   - Expected response: `204 No Content`. The token has **Actions: read and write** on this repository only and lives only in cron-job.org.
+5. Backup trigger: repository variable `RILLMARK_SCHEDULE_ENABLED=true` enables the GitHub cron `47 3 * * *` (off the hour). If both fire, the second run finds no changes and skips every file.
 
-The container writes into its own app-owned filesystem. `docker start --attach` propagates its exit code; an `always()` collection step copies `/app/last_run.json` with `docker cp`, then removes the container. No bind mount permissions or root execution are needed. Artifact upload also runs after failure when a report exists; a preflight/build failure may have no report. The collector removes any checkout report first to prevent stale evidence. Cancellation/runner loss can prevent collection. Workflow artifacts can require login; the fixed public Gist is the anonymous evidence link.
+Runs are named by trigger: `Rillmark daily (cron-job.org)`, `(github-schedule)` or `(manual)`.
 
-Read-only contents permission, serialized non-cancelling runs and a 20-minute timeout remain enabled. Schedules may be delayed/dropped and public-repository schedules may be disabled after 60 days of inactivity. For each scheduled run, confirm its public `run_id` and `git_sha` match the Actions log; configuring cron or dispatching manually does not prove scheduled freshness.
+The job passes `GIT_SHA` into the container for report correlation. The application keeps its timestamp-based `run_id`, timestamps, status, added/updated/skipped counts and publication status. Compare the Actions log summary and uploaded JSON with the public Gist JSON; match `run_id`, `finished_at` and `git_sha`.
 
-### Scheduled-trigger evidence (temporary validation, 31 Oct 2026)
+The container writes into its own filesystem. `docker start --attach` propagates its exit code; an `always()` step copies `/app/last_run.json` with `docker cp`, then removes the container. The collector deletes any checkout report first so stale evidence can't be uploaded. Cancellation or runner loss can prevent collection. Workflow artifacts can require login; the fixed public Gist is the anonymous evidence link.
 
-A bounded test temporarily used `*/5 * * * *` on the default
-branch with `RILLMARK_SCHEDULE_ENABLED=true`. The validation commit was
-`1646c27` (31 Oct 2026, 08:41 UTC). The normal schedule has since
-been **restored to `0 3 * * *` (03:00 UTC daily)**. The test was a
-scheduler check, not a change in the intended deployment cadence.
+Read-only contents permission, serialized non-cancelling runs and a 20-minute timeout stay enabled. The fine-grained token expires after 90 days and must be renewed in cron-job.org.
 
-Three distinct evidence checks are required:
-1. **Configuration:** inspect the cron and job condition in
-   [the workflow](https://github.com/giahuydo/rillmark/blob/main/.github/workflows/rillmark-daily.yml).
-2. **Cloud execution:** a run must have `event=schedule` and
-   `conclusion=success`. The [previous successful Docker sync](https://github.com/giahuydo/rillmark/actions/runs/41178971431)
-   had `event=workflow_dispatch`; it does **not** prove automatic triggering.
-3. **Public artifact:** compare the scheduled run's `git_sha`,
-   `run_id`, `mode=sync` and `publish=ok` with the fixed
-   [Gist](https://gist.github.com/giahuydo/4968a3eec9704d752fbacb239964ee21).
-   A stale Gist or an unsuccessful scheduled run does not close this gate.
+### Scheduler evidence (1 Nov 2026)
 
-**Observed outcome (31 Oct 2026, checked through 08:55 UTC):**
-`gh run list --workflow rillmark-daily.yml --event schedule` returned
-an empty list. No scheduled execution was observed during this window,
-even though Actions was enabled, the workflow was active on default
-branch `main`, and `RILLMARK_SCHEDULE_ENABLED=true`. Prior successful
-runs were both `workflow_dispatch`. This is **not proof that scheduled
-execution is broken**: GitHub may delay/drop events. **Status:
-scheduled-run evidence PENDING.** A later investigation can check
-GitHub's schedule delivery and actions settings; do not change the
-production cadence or claim success without a real `event=schedule`
-run and matching Gist data.
+| Check | Result |
+|---|---|
+| GitHub `schedule`, 03:00 UTC slot (cron then `0 3 * * *`) | Delivered **7 h 18 min late**: [run 41296858382](https://github.com/giahuydo/rillmark/actions/runs/41296858382), `event=schedule`, created 10:17:52 UTC, `sync`, `skipped=37`, `publish=ok`. A 14-minute `*/5` window on 31 Oct produced no run |
+| Fresh private probe repo, GitHub `*/5 * * * *` | **No `schedule` run in 45 minutes** (10:27–11:12 UTC) |
+| Same probe, cron-job.org every 5 minutes | Dispatch returned `204`; runs at 11:00, 11:01, 11:05, 11:10 UTC, all successful |
+| This repo, cron-job.org test run | `204 No Content`; [run 41301381940](https://github.com/giahuydo/rillmark/actions/runs/41301381940) `Rillmark daily (cron-job.org)`: `run_id=2026-11-01T11:19:53Z`, `sync`, `skipped=37`, `publish=ok`, `git_sha e8f70f7`, matching the public Gist |
+
+![cron-job.org test run for this repository: 204 No Content](screenshots/scheduler/cron-job-org-rillmark-test-run-204.png)
+
+![This repository's Actions list: the cron-job.org run, the late GitHub scheduled run, and manual runs](screenshots/scheduler/rillmark-actions-cron-job-org-run.png)
+
+Probe repository, five-minute external dispatch:
+
+![cron-job.org dashboard with the probe job enabled and successful](screenshots/scheduler/cron-job-org-dashboard-probe.png)
+
+![Probe repository Actions list: five-minute dispatch runs, all successful](screenshots/scheduler/probe-actions-five-minute-dispatches.png)
+
+Conclusion: the job works on both triggers. GitHub's own scheduler is **not dependable for timing**: it delivered the daily event seven hours late and delivered nothing to the probe in 45 minutes, matching GitHub's documented delays and drops. cron-job.org fired on time every time, so it is the primary trigger and GitHub's cron stays as a backup.
 
 ### 3. Scheduling (Render Cron Job)
 

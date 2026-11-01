@@ -46,9 +46,7 @@ Without `VECTOR_STORE_ID`, a `managed_by=rillmark-optibot-v1` store is created o
 
 ## Daily cloud job
 
-[GitHub Actions](https://github.com/giahuydo/rillmark/actions/workflows/rillmark-daily.yml) is configured for `03:00 UTC` daily. The temporary 5-minute scheduler check produced no observed `schedule` event; the run trigger remains unverified. Manual runs default to `dry-run` (no upload/publish); `sync` requires approval. Actions retains logs and available local reports. See [operations](docs/04-operations.md#3-scheduling-github-actions).
-
-Confirm public `run_id` and `git_sha` against an Actions run before claiming scheduled freshness. Cut: oversize splitting, source-removal deletion.
+**Every day at 03:23 UTC, [cron-job.org](https://cron-job.org) dispatches the [GitHub Actions workflow](https://github.com/giahuydo/rillmark/actions/workflows/rillmark-daily.yml)** in `sync` mode; runs are named `Rillmark daily (cron-job.org)`. GitHub's own cron (`47 3 * * *`) is a backup. Why an external trigger: GitHub's schedule arrived 7 hours late in our test while cron-job.org fired on time, and it is free where Render and similar cron services are paid ([ADR-0004](docs/adr/0004-scheduler.md), [evidence](docs/04-operations.md#scheduler-evidence-1-nov-2026)). Each run's `run_id` and `git_sha` match the public Gist. Cut: oversize splitting, source-removal deletion.
 
 ## Playground screenshot
 
