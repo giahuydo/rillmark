@@ -9,7 +9,7 @@ Status: Accepted (amended 1 Nov 2026). Supersedes the earlier Render Cron decisi
 | Trigger | When | Role |
 |---|---|---|
 | cron-job.org calls the `workflow_dispatch` API with `{"ref":"main","inputs":{"mode":"sync","trigger":"cron-job.org"}}` | 03:23 UTC daily | **Primary** |
-| GitHub `schedule`, `47 3 * * *`, gated by `RILLMARK_SCHEDULE_ENABLED=true` | 03:47 UTC daily | Backup; a second run that day finds no changes and skips every file |
+| GitHub `schedule`, `47 3 * * *` | 03:47 UTC daily | **Standby, off.** `RILLMARK_SCHEDULE_ENABLED=false`, so the job is skipped and nothing runs twice. Set it to `true` only if cron-job.org is unavailable |
 | Manual dispatch (default `dry-run`) | On demand | Operator checks |
 
 The run name shows the trigger: `Rillmark daily (cron-job.org)`, `(github-schedule)` or `(manual)`.

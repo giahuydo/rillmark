@@ -28,7 +28,7 @@ For the author's Playground, scope the key to the same project so the store appe
 
 ## 3. Scheduling (cron-job.org → GitHub Actions)
 
-The job runs in `.github/workflows/rillmark-daily.yml` on a GitHub-hosted Ubuntu runner: it builds the existing Dockerfile and runs the non-root image once. No registry is needed. **cron-job.org triggers it every day**; GitHub's own `schedule` is a backup. Rationale in [ADR-0004](adr/0004-scheduler.md).
+The job runs in `.github/workflows/rillmark-daily.yml` on a GitHub-hosted Ubuntu runner: it builds the existing Dockerfile and runs the non-root image once. No registry is needed. **cron-job.org triggers it every day**; GitHub's own `schedule` is a standby that is switched off. Rationale in [ADR-0004](adr/0004-scheduler.md).
 
 **Setup**
 
@@ -40,7 +40,9 @@ The job runs in `.github/workflows/rillmark-daily.yml` on a GitHub-hosted Ubuntu
    - Headers: `Accept: application/vnd.github+json`, `Authorization: Bearer <fine-grained token>`, `X-GitHub-Api-Version: 2022-11-28`, `Content-Type: application/json`
    - Body: `{"ref":"main","inputs":{"mode":"sync","trigger":"cron-job.org"}}`
    - Expected response: `204 No Content`. The token has **Actions: read and write** on this repository only and lives only in cron-job.org.
-5. Backup trigger: repository variable `RILLMARK_SCHEDULE_ENABLED=true` enables the GitHub cron `47 3 * * *` (off the hour). If both fire, the second run finds no changes and skips every file.
+5. Standby trigger: the workflow also has the GitHub cron `47 3 * * *` (off the hour), but the job runs on it only when repository variable `RILLMARK_SCHEDULE_ENABLED` is `true`. It is set to **`false`**, so there is one run a day; GitHub may still list a skipped scheduled run. Set it to `true` only if cron-job.org is unavailable.
+
+![cron-job.org job for this repository: every day at 03:23 UTC (crontab 23 3 * * *)](screenshots/scheduler/cron-job-org-rillmark-daily-0323-utc.png)
 
 Runs are named by trigger: `Rillmark daily (cron-job.org)`, `(github-schedule)` or `(manual)`.
 
@@ -69,7 +71,7 @@ Probe repository, five-minute external dispatch:
 
 ![Probe repository Actions list: five-minute dispatch runs, all successful](screenshots/scheduler/probe-actions-five-minute-dispatches.png)
 
-Conclusion: the job works on both triggers. GitHub's own scheduler is **not dependable for timing**: it delivered the daily event seven hours late and delivered nothing to the probe in 45 minutes, matching GitHub's documented delays and drops. cron-job.org fired on time every time, so it is the primary trigger and GitHub's cron stays as a backup.
+Conclusion: the job works on both triggers. GitHub's own scheduler is **not dependable for timing**: it delivered the daily event seven hours late and delivered nothing to the probe in 45 minutes, matching GitHub's documented delays and drops. cron-job.org fired on time every time, so it is the only active trigger; GitHub's cron stays in the workflow as a switched-off standby.
 
 ### 3. Scheduling (Render Cron Job)
 

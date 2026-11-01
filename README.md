@@ -46,7 +46,7 @@ Without `VECTOR_STORE_ID`, a `managed_by=rillmark-optibot-v1` store is created o
 
 ## Daily cloud job
 
-**Every day at 03:23 UTC, [cron-job.org](https://cron-job.org) dispatches the [GitHub Actions workflow](https://github.com/giahuydo/rillmark/actions/workflows/rillmark-daily.yml)** in `sync` mode; runs are named `Rillmark daily (cron-job.org)`. GitHub's own cron (`47 3 * * *`) is a backup. Why an external trigger: GitHub's schedule arrived 7 hours late in our test while cron-job.org fired on time, and it is free where Render and similar cron services are paid ([ADR-0004](docs/adr/0004-scheduler.md), [evidence](docs/04-operations.md#scheduler-evidence-1-nov-2026)). Each run's `run_id` and `git_sha` match the public Gist. Cut: oversize splitting, source-removal deletion.
+**Every day at 03:23 UTC, [cron-job.org](https://cron-job.org) dispatches the [GitHub Actions workflow](https://github.com/giahuydo/rillmark/actions/workflows/rillmark-daily.yml)** in `sync` mode; runs are named `Rillmark daily (cron-job.org)`. GitHub's own cron (`47 3 * * *`) is a standby, switched off with `RILLMARK_SCHEDULE_ENABLED=false` so the job runs once a day. Why an external trigger: GitHub's schedule arrived 7 hours late in our test while cron-job.org fired on time, and it is free where Render and similar cron services are paid ([ADR-0004](docs/adr/0004-scheduler.md), [evidence](docs/04-operations.md#scheduler-evidence-1-nov-2026)). Each run's `run_id` and `git_sha` match the public Gist. Cut: oversize splitting, source-removal deletion.
 
 ## Playground screenshot
 

@@ -4,8 +4,9 @@ run-name: >-
 
 on:
   # Primary daily trigger: cron-job.org dispatches this workflow at 03:23 UTC
-  # (see docs/adr/0004-scheduler.md). GitHub's own schedule is a backup,
-  # offset from the hour because top-of-hour schedules are often delayed.
+  # (see docs/adr/0004-scheduler.md). GitHub's own schedule is a standby:
+  # the job skips it unless vars.RILLMARK_SCHEDULE_ENABLED is 'true'.
+  # It is offset from the hour because top-of-hour schedules are often delayed.
   schedule:
     - cron: "47 3 * * *"
   workflow_dispatch:
