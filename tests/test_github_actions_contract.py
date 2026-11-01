@@ -22,7 +22,7 @@ def _step(name: str) -> str:
 
 def test_schedule_and_dispatch_default_to_safe_dry_run() -> None:
     text = _workflow()
-    assert re.search(r'(?m)^    - cron: ["\']0 3 \* \* \*["\']$', text)
+    assert re.search(r'(?m)^    - cron: ["\']47 3 \* \* \*["\']$', text)
     assert re.search(r"(?m)^  workflow_dispatch:\s*$", text)
     assert re.search(r"(?m)^        default: dry-run\s*$", text)
     assert re.search(r"(?m)^          - dry-run\s*$", text)
